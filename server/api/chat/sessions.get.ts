@@ -1,7 +1,7 @@
-import { fetchFromBackend } from '../../utils/backend'
+import { loadChatSessions } from '../../utils/mindwealth-data'
 
 export default defineEventHandler(async () => {
-  const fromBackend = await fetchFromBackend<{ sessions: unknown[] }>('/api/chat/sessions')
+  const fromBackend = await loadChatSessions()
   if (fromBackend) return fromBackend
 
   return {

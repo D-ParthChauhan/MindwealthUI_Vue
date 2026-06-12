@@ -1,5 +1,5 @@
 <template>
-  <div class="rs">
+  <div class="rs" :class="{ 'rs-compact': compact }">
     <div class="rsd" :class="dotClass" />
     <div class="rsl" :style="labelColor ? { color: labelColor } : undefined">
       {{ headline }}
@@ -19,5 +19,6 @@ defineProps<{
   labelColor?: string
   items?: string[]
   right?: string
+  compact?: boolean
 }>()
 </script>

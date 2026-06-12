@@ -40,6 +40,7 @@
       <div class="card">
         <div class="ct">{{ tableTitle }}</div>
         <div class="cm">FUNCTION · INTERVAL · DIRECTION · BT WIN RATE · FWD WIN RATE · SENTIMENT SCORE · STATUS</div>
+        <div class="m-tbl-scroll">
         <table class="tbl">
           <thead>
             <tr>
@@ -65,6 +66,7 @@
             </tr>
           </tbody>
         </table>
+        </div>
         <div v-if="hasDegraded" class="signals-note">
           Note: degraded signals are shown dimmed when forward test win rate trails backtest by more than 10pp but may still be above the 60% minimum threshold.
         </div>

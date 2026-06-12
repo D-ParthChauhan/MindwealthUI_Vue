@@ -174,9 +174,11 @@ function goFsPage(ticker: string) {
 .cv-scroll {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 .cv-main-view {
   flex: 1;
   min-height: 0;
+  min-width: 0;
 }
 </style>

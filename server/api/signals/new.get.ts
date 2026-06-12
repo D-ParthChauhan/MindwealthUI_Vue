@@ -1,8 +1,6 @@
-import { fetchFromBackend } from '../../utils/backend'
+import { loadNewSignals } from '../../utils/mindwealth-data'
 import { getMockSignalsNew } from '../../utils/mock-data'
 
-export default defineEventHandler(async (event) => {
-  const query = getQuery(event)
-  const path = `/api/signals/new${Object.keys(query).length ? `?${new URLSearchParams(query as Record<string, string>).toString()}` : ''}`
-  return (await fetchFromBackend(path)) ?? getMockSignalsNew()
+export default defineEventHandler(async () => {
+  return (await loadNewSignals()) ?? getMockSignalsNew()
 })

@@ -1,6 +1,6 @@
-import { fetchFromBackend } from '../utils/backend'
+import { loadConviction } from '../utils/mindwealth-data'
 import { getMockConviction } from '../utils/conviction-mock-data'
 
 export default defineEventHandler(async () => {
-  return (await fetchFromBackend('/api/conviction')) ?? getMockConviction()
+  return (await loadConviction()) ?? getMockConviction()
 })

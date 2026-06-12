@@ -22,7 +22,9 @@
           </div>
         </div>
         <div class="cv-drawer-head-actions">
-          <button type="button" class="cv-link-btn" @click.stop="$emit('fs-page', detail.ticker)">Full FS page →</button>
+          <button type="button" class="cv-link-btn" @click.stop="$emit('fs-page', detail.ticker)">
+            <span class="m-lbl-long">Full FS page →</span><span class="m-lbl-short">FS →</span>
+          </button>
           <button type="button" class="cv-drawer-close" aria-label="Close" @click.stop="$emit('close')">×</button>
         </div>
       </div>
@@ -55,12 +57,16 @@
           :class="{ on: drawerTab === tab.id }"
           @click.stop="drawerTab = tab.id"
         >
-          {{ tab.label }}
+          <span class="m-lbl-long">{{ tab.label }}</span>
+          <span class="m-lbl-short">{{ tab.shortLabel }}</span>
         </button>
       </div>
 
       <div v-show="drawerTab === 'bq'" class="cv-dpanel">
-        <div class="cv-dpanel-hint">15 BQ dimensions · green = positive · red = negative · auto = computed · manual = analyst input</div>
+        <div class="cv-dpanel-hint">
+          <span class="m-lbl-long">15 BQ dimensions · green = positive · red = negative · auto = computed · manual = analyst input</span>
+          <span class="m-lbl-short">15 BQ dims · +/− score · auto / manual</span>
+        </div>
         <div v-for="dim in detail.dimensions" :key="dim.name" class="cv-bqbar-row">
           <div class="cv-bqbar-label">{{ dim.name }}</div>
           <div class="cv-bqbar-track">
@@ -86,7 +92,10 @@
             <div class="cv-fs-cap">Long signal cap: {{ fsCapNote(detail.fsClass) }}</div>
           </div>
           <div class="cv-fs-block">
-            <div class="cv-fs-bl">OEY (owner earnings yield)</div>
+            <div class="cv-fs-bl">
+              <span class="m-lbl-long">OEY (owner earnings yield)</span>
+              <span class="m-lbl-short">OEY</span>
+            </div>
             <div class="cv-fs-bv" :class="oeyClass(detail.oey)">{{ detail.oey }}%</div>
             <div class="cv-fs-cap">{{ detail.oeyFloorLabel }}</div>
           </div>
@@ -102,7 +111,10 @@
               </div>
               <div class="cv-pe-pct" :class="peClass(detail.pePercentile)">{{ detail.pePercentile }}th</div>
             </div>
-            <div class="cv-fs-cap">Current PE: {{ detail.pe }}× · Computed using contemporaneous trailing-4Q EPS</div>
+            <div class="cv-fs-cap">
+              <span class="m-lbl-long">Current PE: {{ detail.pe }}× · Computed using contemporaneous trailing-4Q EPS</span>
+              <span class="m-lbl-short">PE: {{ detail.pe }}× · trailing-4Q EPS</span>
+            </div>
           </div>
         </div>
       </div>
@@ -160,9 +172,9 @@ watch(() => props.open, (isOpen) => {
 })
 
 const drawerTabs = [
-  { id: 'bq' as const, label: 'BQ drilldown' },
-  { id: 'fs' as const, label: 'FS + valuation' },
-  { id: 'fd' as const, label: 'fd direction' },
+  { id: 'bq' as const, label: 'BQ drilldown', shortLabel: 'BQ' },
+  { id: 'fs' as const, label: 'FS + valuation', shortLabel: 'FS' },
+  { id: 'fd' as const, label: 'fd direction', shortLabel: 'fd' },
 ]
 
 function ringClass(score: number) {

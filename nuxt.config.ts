@@ -2,9 +2,13 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-05-25',
   devtools: { enabled: true },
   runtimeConfig: {
-    apiBaseUrl: process.env.NUXT_API_BASE_URL || '',
+    apiBaseUrl: process.env.NUXT_API_BASE_URL || 'http://51.20.53.218:8506',
+    apiKey: process.env.NUXT_API_KEY || '',
+    public: {
+      adminMode: process.env.NUXT_PUBLIC_ADMIN_MODE === 'true',
+    },
   },
-  css: ['~/assets/css/main.css'],
+  css: ['~/assets/css/main.css', '~/assets/css/mobile.css'],
   app: {
     head: {
       title: 'MindWealth · Alpha Terminal',

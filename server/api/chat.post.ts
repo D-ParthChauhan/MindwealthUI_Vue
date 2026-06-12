@@ -1,21 +1,13 @@
 import type { ChatRequest, ChatResponse } from '~/types/api'
-import { fetchFromBackend } from '../utils/backend'
+import { sendChatMessage } from '../utils/mindwealth-data'
+import { isBackendConfigured } from '../utils/mindwealth-client'
 
 function mockChatReply(body: ChatRequest): ChatResponse {
   const sessionId = body.session_id || `mock-${Date.now()}`
   return {
     session_id: sessionId,
-    reply: `**AI Analyst (mock)** — Received your question about *${body.message.slice(0, 80)}${body.message.length > 80 ? '…' : ''}*.\n\nConnect \`NUXT_API_BASE_URL\` to the Python FastAPI service for live answers from \`ChatbotEngine.smart_query()\`.`,
-    metadata: {
-      tokens_used: { input: 0, output: 0, total: 0 },
-      signal_types: body.signal_types ?? [],
-      tickers: body.assets ?? [],
-      functions: body.functions ?? [],
-      rows_returned: 0,
-      batched: false,
-      error: null,
-      mock: true,
-    },
+    reply: `**AI Analyst (mock)** — Received your question about *${body.message.slice(0, 80)}${body.message.length > 80 ? '…' : ''}*.\n\nBackend unreachable; showing mock response.`,
+    metadata: { mock: true },
   }
 }
 
@@ -25,11 +17,7 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: 'message is required' })
   }
 
-  const fromBackend = await fetchFromBackend<ChatResponse>('/api/chat', {
-    method: 'POST',
-    body,
-  })
-
+  const fromBackend = await sendChatMessage(body)
   if (fromBackend) {
     if (fromBackend.error && !fromBackend.reply) {
       return {
@@ -42,13 +30,12 @@ export default defineEventHandler(async (event) => {
     return fromBackend
   }
 
-  const config = useRuntimeConfig()
-  if (!config.apiBaseUrl) {
+  if (!isBackendConfigured()) {
     return mockChatReply(body)
   }
 
   throw createError({
     statusCode: 503,
-    statusMessage: 'AI analyst unavailable — backend unreachable',
+    statusMessage: 'AI analyst unavailable — backend unreachable or job timed out',
   })
 })

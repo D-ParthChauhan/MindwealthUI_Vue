@@ -1,6 +1,6 @@
-import { fetchFromBackend } from '../../utils/backend'
+import { loadSignalCounts } from '../../utils/mindwealth-data'
 import { getMockSignalCounts } from '../../utils/mock-data'
 
 export default defineEventHandler(async () => {
-  return (await fetchFromBackend('/api/signals/counts')) ?? getMockSignalCounts()
+  return (await loadSignalCounts()) ?? getMockSignalCounts()
 })

@@ -1,3 +1,4 @@
+import { buildWinRateChart } from '~/utils/win-rate-chart'
 import type {
   ApiMeta,
   BreadthResponse,
@@ -163,6 +164,7 @@ export function getMockSignalCounts(): SignalCountsResponse {
 }
 
 export function getMockDashboard(): DashboardResponse {
+  const performance = getMockPerformance()
   return {
     meta: mockMeta,
     kpis: {
@@ -225,35 +227,7 @@ export function getMockDashboard(): DashboardResponse {
     degraded_strategy: 'DeltaDrift',
     analyst_snippet:
       'Fractal Track JPM+BAC Monthly confirming. DeltaDrift shorts showing forward test degradation — pause new shorts. SSI +0.4 neutral — no long/short trigger.',
-    win_rate_chart: {
-      series: [
-        {
-          name: 'Long WR',
-          strategy: 'FRACTAL_TRACK',
-          points: [
-            { x: 'FRACTAL TRACK', y: 100 },
-            { x: 'TRENDPULSE', y: 92.9 },
-            { x: 'SIGMASHELL', y: 87.4 },
-          ],
-        },
-        {
-          name: 'Short WR',
-          strategy: 'DELTADRIFT',
-          points: [
-            { x: 'DELTADRIFT', y: 71.3 },
-          ],
-        },
-        {
-          name: 'Backtested WR',
-          strategy: 'FRACTAL_TRACK',
-          points: [
-            { x: 'FRACTAL TRACK', y: 88 },
-            { x: 'TRENDPULSE', y: 85 },
-            { x: 'DELTADRIFT', y: 88 },
-          ],
-        },
-      ],
-    },
+    win_rate_chart: buildWinRateChart(performance.rows, performance.meta),
     regime: {
       items: [
         { label: 'Trending', pct: 38 },

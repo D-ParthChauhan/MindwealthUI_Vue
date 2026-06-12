@@ -5,23 +5,6 @@ export interface ClaudeMessage {
   html: string
 }
 
-const defaultMessages: ClaudeMessage[] = [
-  {
-    id: 'deg',
-    role: 'agent',
-    label: 'AI ANALYST · AUTO-TRIGGERED · DEGRADATION ALERT',
-    html:
-      '<span class="wa">DeltaDrift short</span> gap: BT 88% vs FWD 71.3%. Above 60% floor — <span class="hi">not failed, monitored</span>. Combo D FOMO partially firing reduces short conviction further. Recommend pause new shorts.',
-  },
-  {
-    id: 'ssi',
-    role: 'agent',
-    label: 'AI ANALYST · SSI + PATTERN CONTEXT',
-    html:
-      'QQQ RSI 82.83 + 14.5% above 50DMA: <span class="wa">3/3 negative 1M historically</span>. Tavily confirms Burry calling top, BTIG SOX extreme. SSI +0.4 neutral — no long trigger. Hold core, reduce new entries.',
-  },
-]
-
 function escapeHtml(text: string) {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
@@ -36,17 +19,21 @@ function replyToHtml(reply: string) {
 
 export function useClaudePanel() {
   const isOpen = useState('claude-open', () => false)
-  const showBadge = useState('claude-badge', () => true)
-  const dismissedAuto = useState('claude-dismissed-auto', () => false)
-  const messages = useState<ClaudeMessage[]>('claude-messages', () => [...defaultMessages])
+  const chatMessages = useState<ClaudeMessage[]>('claude-chat-messages', () => [])
   const draft = useState('claude-draft', () => '')
   const pageContext = useState('claude-context', () => 'Dashboard')
   const sessionId = useState<string | null>('claude-session-id', () => null)
   const sending = useState('claude-sending', () => false)
+  const pendingAlert = useState('ow-pending-alert', () => false)
 
   function toggle() {
+    if (!isOpen.value) {
+      const activeTab = useState<import('~/composables/useOverwatch').AnalystTab>('ow-active-tab', () => 'all')
+      activeTab.value = 'all'
+      if (import.meta.client) localStorage.setItem('analyst-active-tab', 'all')
+    }
     isOpen.value = !isOpen.value
-    if (isOpen.value) showBadge.value = false
+    if (isOpen.value) pendingAlert.value = false
   }
 
   function close() {
@@ -57,32 +44,13 @@ export function useClaudePanel() {
     pageContext.value = ctx
   }
 
-  function maybeAutoOpen(page: string, autoTrigger: boolean) {
-    if (autoTrigger && !dismissedAuto.value) {
-      showBadge.value = true
-      setTimeout(() => {
-        if (!dismissedAuto.value) {
-          isOpen.value = true
-          showBadge.value = false
-        }
-      }, 1600)
-    } else if (!isOpen.value) {
-      showBadge.value = true
-    }
-  }
-
-  function dismissAutoForSession() {
-    dismissedAuto.value = true
-    close()
-  }
-
   async function sendMessage() {
     const text = draft.value.trim()
     if (!text || sending.value) return
 
     const userId = `user-${Date.now()}`
-    messages.value = [
-      ...messages.value,
+    chatMessages.value = [
+      ...chatMessages.value,
       {
         id: userId,
         role: 'user',
@@ -93,8 +61,8 @@ export function useClaudePanel() {
     draft.value = ''
 
     const pendingId = `agent-${Date.now()}`
-    messages.value = [
-      ...messages.value,
+    chatMessages.value = [
+      ...chatMessages.value,
       {
         id: pendingId,
         role: 'agent',
@@ -112,11 +80,11 @@ export function useClaudePanel() {
       })
       sessionId.value = res.session_id
       const html = res.error ? `<span class="wa">${escapeHtml(res.error)}</span>` : replyToHtml(res.reply)
-      messages.value = messages.value.map((m) =>
+      chatMessages.value = chatMessages.value.map((m) =>
         m.id === pendingId ? { ...m, html, label: 'AI ANALYST · ON DEMAND' } : m,
       )
     } catch {
-      messages.value = messages.value.map((m) =>
+      chatMessages.value = chatMessages.value.map((m) =>
         m.id === pendingId
           ? {
               ...m,
@@ -131,16 +99,14 @@ export function useClaudePanel() {
 
   return {
     isOpen,
-    showBadge,
-    messages,
+    chatMessages,
     draft,
     pageContext,
     sending,
+    pendingAlert,
     toggle,
     close,
     setContext,
-    maybeAutoOpen,
-    dismissAutoForSession,
     sendMessage,
   }
 }

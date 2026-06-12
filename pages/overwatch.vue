@@ -38,7 +38,7 @@
         />
       </div>
       <div class="ow-grid">
-        <div class="ow-col">
+        <div class="ow-col scroll-col">
           <div class="section-label">LAYER 1 · FUNCTION HEALTH</div>
           <div
             v-for="fn in data.function_health ?? []"
@@ -78,16 +78,7 @@
             </div>
             <div class="log-tag">{{ log.tag }}</div>
           </div>
-          <div class="claude-explainer">
-            <div class="explainer-title">💬 AI ANALYST — WHY IT APPEARED ON THIS PAGE</div>
-            <div class="explainer-body">
-              1. Nightly agent wrote: <span class="gold">alerts.json</span> with degradation alert, type="degradation", target_page="overwatch"<br>
-              2. Vue fetched alerts on page load (once per visit)<br>
-              3. User navigated to Overwatch → Claude panel <span class="gold">auto-opened after 1.5s delay</span><br>
-              4. If user had been on Dashboard → only a <span class="red">red badge dot</span> on 💬 button, panel does NOT auto-open<br>
-              5. Dismissed once → never auto-opens same alert again this session
-            </div>
-          </div>
+          <AnalystPanelInner embedded default-tab="signals" />
         </div>
       </div>
     </div>
@@ -255,27 +246,6 @@ function logDotClass(log: NonNullable<OverwatchResponse['system_logs']>[number])
   margin-left: auto;
   flex-shrink: 0;
 }
-.claude-explainer {
-  background: rgba(201, 168, 76, 0.05);
-  border: 1px solid rgba(201, 168, 76, 0.2);
-  border-radius: 6px;
-  padding: 12px 14px;
-  margin-top: 4px;
-}
-.explainer-title {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
-  letter-spacing: 1.5px;
-  color: var(--gold);
-  margin-bottom: 8px;
-}
-.explainer-body {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--t2);
-  line-height: 1.7;
-}
 .gold { color: var(--gold); }
 .green { color: var(--green); }
-.red { color: var(--red); }
 </style>

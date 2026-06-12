@@ -1,5 +1,17 @@
 import type { TabId } from '~/constants/navigation'
-import type { SignalCountsResponse } from '~/types/api'
+import {
+  buildAgentItems,
+  buildRegimeStrip,
+  buildTopbarStatus,
+} from '~/constants/regime-strip'
+import type {
+  DashboardResponse,
+  OverwatchResponse,
+  PortfolioResponse,
+  RunicNightlyResponse,
+  SentimentResponse,
+  SignalCountsResponse,
+} from '~/types/api'
 
 export interface TerminalPageConfig {
   activeTab: TabId
@@ -30,81 +42,55 @@ export interface TerminalPageConfig {
   claudeAutoTrigger?: boolean
 }
 
-const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId'> & { defaultNavId: string }> = {
+const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId' | 'regime' | 'agentItems' | 'status'> & { defaultNavId: string }> = {
   '/dashboard': {
     activeTab: 'dashboard',
     defaultNavId: 'dashboard',
-    regime: {
-      dotClass: 'warn',
-      headline: 'EUPHORIA / RECOVERY TENSION',
-      items: [
-        'REGIME <span style="color:var(--gold)">D+F PARTIAL</span>',
-        'SIGMA <span>−1.2σ</span>',
-        'SENTIMENT SCORE <span style="color:var(--teal)">+0.4</span>',
-        'VIX <span>16.4</span>',
-        'VIX REGIME <span>NORMAL · 80% DEPLOY</span>',
-      ],
-      right: '<span style="color:var(--red)">TACTICAL FEARFUL</span> · <span style="color:var(--green)">STRATEGIC BRAVE</span>',
-    },
     navGroups: [
       {
         label: 'Overview',
         items: [
           { id: 'dashboard', label: 'Dashboard', dot: 'gold' },
-          { id: 'outstanding', label: 'Outstanding Signals', sub: '63 active', dot: 'g', to: '/signals' },
-          { id: 'new', label: 'New Signals', sub: '7 today', dot: 'g', to: '/signals' },
-          { id: 'shortlist', label: 'Claude Shortlisted', sub: '7', dot: 'gold', to: '/signals' },
+          { id: 'outstanding', label: 'Outstanding Signals', dot: 'g', to: '/signals' },
+          { id: 'new', label: 'New Signals', dot: 'g', to: '/signals' },
+          { id: 'shortlist', label: 'Claude Shortlisted', dot: 'gold', to: '/signals' },
         ],
       },
       {
         label: 'Functions (10)',
         items: [
-          { id: 'fractal', label: 'Fractal Track', sub: 'fib_ret · 100% WR', dot: 'g' },
-          { id: 'trend', label: 'TrendPulse', sub: 'trendline · 92.9%', dot: 'g' },
-          { id: 'delta', label: 'DeltaDrift', sub: 'distance · ⚠ shorts', dot: 'gold' },
-          { id: 'band', label: 'Band Matrix', sub: 'bollinger · 83%', dot: 'gold' },
-          { id: 'sigma', label: 'SigmaShell', sub: 'sigma · z-score gated', dot: 'b' },
-          { id: 'pulse', label: 'PulseGauge', sub: 'sentiment · AAII+rules', dot: 'p' },
-          { id: 'alt', label: 'Altitude Alpha', sub: 'new_high', dot: 't' },
-          { id: 'osc', label: 'Oscillator Delta', sub: 'divergence_comp', dot: 'off' },
-          { id: 'base', label: 'Baseline Divergence', sub: 'general_divergence', dot: 'off' },
-          { id: 'sbi', label: 'SBI', sub: 'signal breadth indicator', dot: 'off' },
+          { id: 'fractal', label: 'Fractal Track', dot: 'g' },
+          { id: 'trend', label: 'TrendPulse', dot: 'g' },
+          { id: 'delta', label: 'DeltaDrift', dot: 'gold' },
+          { id: 'band', label: 'Band Matrix', dot: 'gold' },
+          { id: 'sigma', label: 'SigmaShell', dot: 'b' },
+          { id: 'pulse', label: 'PulseGauge', dot: 'p' },
+          { id: 'alt', label: 'Altitude Alpha', dot: 't' },
+          { id: 'osc', label: 'Oscillator Delta', dot: 'off' },
+          { id: 'base', label: 'Baseline Divergence', dot: 'off' },
+          { id: 'sbi', label: 'SBI', dot: 'off' },
         ],
       },
       {
         label: 'Agents',
         items: [
-          { id: 'runic', label: 'Macro · Runic', sub: 'D+F partial', dot: 'gold', pulse: true, to: '/macro' },
+          { id: 'runic', label: 'Macro · Runic', dot: 'gold', to: '/macro' },
           { id: 'conv', label: 'Conviction Engine', dot: 'p', to: '/conviction' },
-          { id: 'ow', label: 'Overwatch', sub: '1 degradation alert', dot: 'b', pulse: true, to: '/overwatch' },
+          { id: 'ow', label: 'Overwatch', dot: 'b', to: '/overwatch' },
         ],
       },
-    ],
-    agentItems: [
-      { dot: 'on', label: 'SIGNAL ENGINE · 63' },
-      { dot: 'wa', label: 'REGIME · D+F tension' },
-      { dot: 'on', label: 'SSI +0.4 neutral' },
-      { dot: 'er', label: 'DEGRADATION · DeltaDrift short' },
-      { dot: 'on', label: 'AWS · live', right: true },
     ],
   },
   '/signals': {
     activeTab: 'signals',
     defaultNavId: 'outstanding',
-    status: { dot: 'g', label: '63 ACTIVE' },
-    regime: {
-      dotClass: 'warn',
-      headline: 'EUPHORIA / RECOVERY TENSION',
-      items: ['SENTIMENT SCORE <span style="color:var(--teal)">+0.4 · NEUTRAL</span>'],
-      right: '<span style="color:var(--red)">TACTICAL FEARFUL</span> · <span style="color:var(--green)">STRATEGIC BRAVE</span>',
-    },
     navGroups: [
       {
         label: 'Signals',
         items: [
-          { id: 'outstanding', label: 'Outstanding · 63', dot: 'g' },
-          { id: 'new', label: 'New Signals · 7', dot: 'g' },
-          { id: 'shortlist', label: 'Claude Shortlisted · 7', dot: 'gold' },
+          { id: 'outstanding', label: 'Outstanding', dot: 'g' },
+          { id: 'new', label: 'New Signals', dot: 'g' },
+          { id: 'shortlist', label: 'Claude Shortlisted', dot: 'gold' },
           { id: 'report', label: 'All Signal Report', dot: 'off' },
           { id: 'sbi', label: 'SBI — Breadth', dot: 'off' },
           { id: 'high', label: 'Horizontal & New High', dot: 'off' },
@@ -114,54 +100,37 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId'> & { defaul
       {
         label: 'Filter',
         items: [
-          { id: 'fractal-f', label: 'Fractal Track · 28', dot: 'off' },
-          { id: 'trend-f', label: 'TrendPulse · 19', dot: 'off' },
-          { id: 'delta-f', label: 'DeltaDrift · 9 ⚠', dot: 'off' },
-          { id: 'interval-f', label: 'Monthly · 12 · Weekly · 27', dot: 'off' },
+          { id: 'fractal-f', label: 'Fractal Track', dot: 'off' },
+          { id: 'trend-f', label: 'TrendPulse', dot: 'off' },
+          { id: 'delta-f', label: 'DeltaDrift', dot: 'off' },
+          { id: 'interval-f', label: 'By interval', dot: 'off' },
         ],
       },
-    ],
-    agentItems: [
-      { dot: 'on', label: '63 SIGNALS' },
-      { dot: 'wa', label: 'Combo D · caution' },
-      { dot: 'on', label: 'AWS · live', right: true },
     ],
   },
   '/macro': {
     activeTab: 'macro',
     defaultNavId: 'combo-c',
-    status: { dot: 'r', label: 'C WK 11 · E CONFIRMED · D WATCH' },
-    regime: {
-      dotClass: 'er',
-      headline: 'TACTICAL FEARFUL · STRATEGIC BRAVE',
-      items: [
-        'ACTIVE <span style="color:var(--red)">C(wk11) · E(confirmed 2/3) · F(wk8)</span>',
-        'WATCH <span style="color:var(--amber)">D · VXTS 1.25 · CFTC PENDING</span>',
-        'DOMINANT <span style="color:var(--red)">C · BEARISH 83% · 3M</span>',
-        'C CANCEL <span style="color:var(--amber)">WTI −17% · 0/4 FRIDAYS</span>',
-      ],
-      right: 'CFTC <span style="color:var(--amber)">3-DAY LAG · PENDING FRI</span>',
-    },
     navGroups: [
       {
         label: 'Active Combos',
         items: [
-          { id: 'combo-c', label: 'Combo C · Stagflation', sub: 'Wk 11 MEDIUM · 83% bearish', dot: 'r' },
-          { id: 'combo-e', label: 'Combo E · Valuation', sub: 'CONFIRMED 2/3 · CAPE 42× + NFCI', dot: 'gold' },
-          { id: 'combo-f', label: 'Combo F · Recovery', sub: 'Wk 8 of 26 · bullish 78%', dot: 'g' },
+          { id: 'combo-c', label: 'Combo C · Stagflation', dot: 'r' },
+          { id: 'combo-e', label: 'Combo E · Valuation', dot: 'gold' },
+          { id: 'combo-f', label: 'Combo F · Recovery', dot: 'g' },
         ],
       },
       {
         label: 'Watch',
         items: [
-          { id: 'combo-d', label: 'Combo D · FOMO Top', sub: '2/3 legs · CFTC pending Fri', dot: 'amber' },
+          { id: 'combo-d', label: 'Combo D · FOMO Top', dot: 'amber' },
         ],
       },
       {
         label: 'Recently Resolved',
         items: [
-          { id: 'combo-b', label: 'Combo B · Capitulation', sub: 'Apr 2025 · SPX +25%', dot: 'off' },
-          { id: 'combo-g', label: 'Combo G · Hidden Stress', sub: 'Apr 2025 resolved', dot: 'off' },
+          { id: 'combo-b', label: 'Combo B · Capitulation', dot: 'off' },
+          { id: 'combo-g', label: 'Combo G · Hidden Stress', dot: 'off' },
         ],
       },
       {
@@ -175,28 +144,10 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId'> & { defaul
         items: [],
       },
     ],
-    agentItems: [
-      { dot: 'er', label: 'COMBO C · MEDIUM wk 11 · dominant bearish' },
-      { dot: 'wa', label: 'D WATCH · 2/3 · CFTC pending Fri' },
-      { dot: 'on', label: 'E CONFIRMED 2/3 · CAPE 42× + NFCI' },
-      { dot: 'on', label: '298 combos nightly · ≥80% hit rate · percentile rank', right: true },
-    ],
   },
   '/sentiment': {
     activeTab: 'sentiment',
     defaultNavId: 'l1',
-    status: { dot: 'p', label: 'SSI · 13 SIGNALS' },
-    regime: {
-      dotClass: 'purple',
-      headline: 'SUPER SENTIMENT INDEX (SSI)',
-      labelColor: 'var(--purple)',
-      items: [
-        'SCORE <span style="color:var(--teal)">+0.4 · NEUTRAL</span>',
-        'LONG TRIGGER <span>&lt;−0.60</span>',
-        'SHORT TRIGGER <span>&gt;+0.60</span>',
-        'PULSEGAUGE FUNCTION <span style="color:var(--t3)">SEPARATE — see Functions left nav</span>',
-      ],
-    },
     navGroups: [
       {
         label: 'SSI Layers',
@@ -213,26 +164,10 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId'> & { defaul
         items: [],
       },
     ],
-    agentItems: [
-      { dot: 'on', label: 'SSI +0.4 neutral · no trigger' },
-      { dot: 'on', label: 'Layer 2: 3/6 confirming' },
-      { dot: 'on', label: 'positioning.json → C++ 08:00 ET · missing data auto-reweighted', right: true },
-    ],
   },
   '/conviction': {
     activeTab: 'conviction',
     defaultNavId: 'signals',
-    status: { dot: 'p', label: 'FUNDAMENTAL AGENT' },
-    regime: {
-      dotClass: 'purple',
-      headline: 'CONVICTION ENGINE v5',
-      labelColor: 'var(--purple)',
-      items: [
-        'KXS.TO <span style="color:var(--green)">+12 · MAX CONVICTION</span>',
-        'T.TO <span style="color:var(--red)">−6 · YIELD TRAP</span>',
-        'NVDA <span style="color:var(--green)">+6 · TACTICAL 85%</span>',
-      ],
-    },
     navGroups: [
       {
         label: 'Views',
@@ -267,28 +202,10 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId'> & { defaul
         items: [],
       },
     ],
-    agentItems: [
-      { dot: 'on', label: 'CONVICTION ENGINE · daily run' },
-      { dot: 'er', label: 'YIELD TRAP active · T.TO' },
-      { dot: 'on', label: 'KXS.TO +6 · TACTICAL 75%' },
-      { dot: 'on', label: 'AWS · live', right: true },
-    ],
   },
   '/portfolio': {
     activeTab: 'portfolio',
     defaultNavId: 'sized',
-    status: { dot: 'g', label: 'SIZER ACTIVE' },
-    regime: {
-      dotClass: 'ok',
-      headline: 'VIX REGIME: NORMAL',
-      items: [
-        'MAX DEPLOY <span style="color:var(--green)">80%</span>',
-        'SSI MULTIPLIER <span>1.00×</span>',
-        'CREDIT ADJ <span>0.90×</span>',
-        'FINAL CEILING <span style="color:var(--gold)">72%</span>',
-        'CASH <span style="color:var(--teal)">28%</span>',
-      ],
-    },
     navGroups: [
       {
         label: 'Portfolio',
@@ -301,35 +218,22 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId'> & { defaul
       },
       {
         label: 'Regime Inputs',
-        static: 'VIX 16.4 → 48th pct<br>→ NORMAL regime<br>Base deploy: 80%<br><br>VIX mult: 1.00×<br>Trend mult: 1.00×<br>Credit mult: 0.90×<br>Final: 80% × 0.90 = 72%<br><br><span style="color:var(--gold)">User can override ↓</span>',
+        static: 'VIX regime, SSI multiplier, and credit adjustment are computed from live macro variables and sentiment layers when positions are open.',
         items: [],
       },
-    ],
-    agentItems: [
-      { dot: 'on', label: 'VIX NORMAL · 72% ceiling' },
-      { dot: 'on', label: 'SSI mult 1.00× · credit adj 0.90×' },
-      { dot: 'er', label: 'TSLA short excluded · degraded' },
-      { dot: 'on', label: 'portfolio_sizer.py · daily run', right: true },
     ],
   },
   '/overwatch': {
     activeTab: 'overwatch',
     defaultNavId: 'health',
     claudeAutoTrigger: true,
-    status: { dot: 'b', label: 'PERF + SYSTEM · CLAUDE TRIGGERED' },
-    regime: {
-      dotClass: 'er',
-      headline: 'OVERWATCH ALERT · DELTADRIFT SHORT DEGRADING · CLAUDE AUTO-TRIGGERED',
-      labelColor: 'var(--red)',
-      right: '<div class="lp"><div class="ld b"></div>TAVILY + INTERNAL DATA · ON DEMAND</div>',
-    },
     navGroups: [
       {
         label: 'Layer 1 · Performance',
         items: [
-          { id: 'health', label: 'Function Health', sub: 'BT vs FWD vs Live', dot: 'b' },
-          { id: 'forced', label: 'Forced Portfolio', sub: '+18.4% YTD', dot: 'g' },
-          { id: 'alerts', label: 'Degradation Alerts', sub: '1 active', dot: 'r', pulse: true },
+          { id: 'health', label: 'Function Health', sub: 'BT vs FWD', dot: 'b' },
+          { id: 'forced', label: 'Forced Portfolio', dot: 'g' },
+          { id: 'alerts', label: 'Degradation Alerts', dot: 'r' },
         ],
       },
       {
@@ -340,17 +244,11 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId'> & { defaul
       {
         label: 'Layer 2 · System',
         items: [
-          { id: 'pipeline', label: 'Data Pipeline', sub: 'Yahoo · FRED · CFTC', dot: 't' },
-          { id: 'autofix', label: 'Auto-Correction Log', sub: '1 fixed · 0 open', dot: 't' },
-          { id: 'version', label: 'Version Monitor', sub: 'all current', dot: 't' },
+          { id: 'pipeline', label: 'Data Pipeline', dot: 't' },
+          { id: 'autofix', label: 'Auto-Correction Log', dot: 't' },
+          { id: 'version', label: 'Version Monitor', dot: 't' },
         ],
       },
-    ],
-    agentItems: [
-      { dot: 'on', label: 'OVERWATCH · 2 layers' },
-      { dot: 'wa', label: 'DEGRADATION · DeltaDrift shorts · amber (above 60%)' },
-      { dot: 'on', label: '1 auto-fix · CFTC delay handled' },
-      { dot: 'wa', label: 'CLAUDE auto-triggered · see explanation above', right: true },
     ],
   },
 }
@@ -393,7 +291,7 @@ const tabLabels: Record<TabId, string> = {
   sentiment: 'Super Sentiment Index',
   conviction: 'Conviction Engine',
   portfolio: 'Portfolio Sizer',
-  overwatch: 'Overwatch · Claude triggered',
+  overwatch: 'Overwatch',
 }
 
 export function useTerminalLayout() {
@@ -401,33 +299,51 @@ export function useTerminalLayout() {
   const navActiveId = useState<string>('terminal-nav-id', () => 'dashboard')
   const { counts } = useSignalCounts()
   const { data: convictionData } = useConviction()
+  const { data: dashboardData } = useFetch<DashboardResponse>('/api/dashboard', { key: 'api-dashboard' })
+  const { data: sentimentData } = useFetch<SentimentResponse>('/api/sentiment', { key: 'api-sentiment' })
+  const { data: portfolioData } = useFetch<PortfolioResponse>('/api/portfolio', { key: 'api-portfolio' })
+  const { data: overwatchData } = useFetch<OverwatchResponse>('/api/overwatch', { key: 'api-overwatch' })
+  const { data: nightlyData } = useFetch<RunicNightlyResponse>('/api/runic/nightly', { key: 'runic-nightly' })
 
   const cfg = computed(() => {
     const base = configs[route.path]
     if (!base) return null
     let navGroups = base.navGroups
-    let status = base.status
-    let regime = base.regime
     if (counts.value) {
       navGroups = patchNavWithCounts(navGroups, counts.value, route.path)
-      if (route.path === '/signals') {
-        status = { dot: 'g', label: `${counts.value.outstanding} ACTIVE` }
-      }
     }
-    if (route.path === '/conviction' && convictionData.value) {
-      const { storeLive, asOf } = convictionData.value
-      const liveLabel = storeLive ? 'conviction_store live' : 'mock data'
-      const liveColor = storeLive ? 'var(--green)' : 'var(--t3)'
-      regime = {
-        ...regime,
-        right: `<span style="color:${liveColor}">${liveLabel}</span> · as of ${asOf}`,
-      }
+    if (route.path === '/overwatch' && overwatchData.value) {
+      const ow = overwatchData.value
+      navGroups = navGroups.map((g) => ({
+        ...g,
+        items: g.items.map((item) => {
+          if (item.id === 'alerts' && ow.count > 0) {
+            return { ...item, sub: `${ow.count} active`, pulse: true }
+          }
+          if (item.id === 'forced' && ow.kpis?.forced_portfolio_ytd != null) {
+            return { ...item, sub: `+${ow.kpis.forced_portfolio_ytd}% YTD` }
+          }
+          return item
+        }),
+      }))
     }
+
+    const stripCtx = {
+      counts: counts.value,
+      dashboard: dashboardData.value,
+      sentiment: sentimentData.value,
+      nightly: nightlyData.value,
+      conviction: convictionData.value,
+      portfolio: portfolioData.value,
+      overwatch: overwatchData.value,
+    }
+
     return {
       ...base,
       navGroups,
-      status,
-      regime,
+      status: buildTopbarStatus(route.path, stripCtx),
+      regime: buildRegimeStrip(route.path, stripCtx),
+      agentItems: buildAgentItems(route.path, stripCtx),
       navActiveId: navActiveId.value,
     } satisfies TerminalPageConfig
   })
@@ -445,14 +361,13 @@ export function useTerminalLayout() {
     { immediate: true },
   )
 
-  const { setContext, maybeAutoOpen } = useClaudePanel()
+  const { setContext } = useClaudePanel()
 
   watch(
     cfg,
     (c) => {
       if (!c) return
       setContext(tabLabels[c.activeTab])
-      maybeAutoOpen(c.activeTab, !!c.claudeAutoTrigger)
     },
     { immediate: true },
   )

@@ -1,6 +1,6 @@
-import { fetchFromBackend } from '../utils/backend'
+import { loadShortlist } from '../utils/mindwealth-data'
 import { getMockShortlist } from '../utils/mock-data'
 
 export default defineEventHandler(async () => {
-  return (await fetchFromBackend('/api/shortlist')) ?? getMockShortlist()
+  return (await loadShortlist()) ?? getMockShortlist()
 })

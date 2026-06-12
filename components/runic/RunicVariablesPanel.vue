@@ -31,6 +31,7 @@
         <div class="runic-card-title">All 12 Variables · Sources · Current Levels · Thresholds</div>
         <span class="runic-body" style="color:var(--amber)">⚠ CFTC / GSR require Friday pull</span>
       </div>
+      <div class="m-tbl-scroll">
       <table class="tbl">
         <thead>
           <tr>
@@ -61,6 +62,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
   </div>
 </template>

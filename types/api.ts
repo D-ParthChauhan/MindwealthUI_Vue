@@ -50,8 +50,25 @@ export interface DashboardResponse {
   degraded_strategy: string | null
   analyst_snippet: string
   win_rate_chart?: {
+    properties: {
+      x_axis: string
+      y_axis: string
+      metric: string
+      row_count: number
+      source_file?: string
+      scope?: string
+      reading_hint?: string
+    }
+    scale: {
+      y_min: number
+      y_max: number
+      y_ticks: number[]
+    }
     series: Array<{
       name: string
+      color: string
+      stroke_width?: number
+      opacity?: number
       strategy?: string
       points: Array<{ x: string; y: number }>
     }>
@@ -141,11 +158,33 @@ export interface OverwatchAlert {
   gap: number
 }
 
+export type OverwatchAlertType = 'degradation' | 'runic' | 'system'
+
+export interface OverwatchPanelAlert {
+  id: string
+  type: OverwatchAlertType
+  label: string
+  html: string
+  recommendation?: string
+  /** Four weekly FWD rate readings for degradation trend bars */
+  fwd_trend?: number[]
+  footer?: string
+  created_at: string
+}
+
+export interface OverwatchSystemCheck {
+  name: string
+  status: 'ok' | 'warn' | 'fail'
+  detail: string
+}
+
 export interface OverwatchResponse {
   meta?: ApiMeta
   alerts: OverwatchAlert[]
   count: number
   message: string
+  panel_alerts?: OverwatchPanelAlert[]
+  system_checks?: OverwatchSystemCheck[]
   kpis?: {
     backtest_wr: number
     forward_wr: number
@@ -316,6 +355,13 @@ export interface RunicWatchCombo {
   pending: string
 }
 
+export interface RunicComboStatusRow {
+  combo: string
+  name: string
+  status: string
+  direction?: string
+}
+
 export interface RunicNightlyResponse {
   date: string
   regime: RunicRegime
@@ -331,6 +377,15 @@ export interface RunicNightlyResponse {
   vix_bypass_active: boolean
   combo_e_status: 'CONFIRMED_2_OF_3' | 'CONFIRMED_3_OF_3'
   narrative: string
+  vix?: number
+  nfci_sigma?: string
+  max_deploy_pct?: number
+  regime_label?: string
+  persistence_signals?: string[]
+  combo_status_rows?: RunicComboStatusRow[]
+  brave_fearful_display?: string
+  tactical_position?: string
+  strategic_position?: string
 }
 
 export interface RunicVariableRow {

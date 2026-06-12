@@ -59,7 +59,7 @@
             <div class="ar-dir">
               <DirectionBadge :direction="pos.direction === 'Short' ? 'SHORT' : 'LONG'" />
             </div>
-            <div class="pos-meta">{{ pos.meta }}</div>
+            <div class="pos-meta" :title="pos.meta">{{ pos.meta }}</div>
             <div class="ar-dollar" :style="pos.excluded ? { color: 'var(--t4)' } : undefined">
               ${{ pos.dollar.toLocaleString() }}
             </div>
@@ -130,10 +130,13 @@ const allocated = computed(() => Math.round(500000 * (maxDeploy.value / 100)))
 }
 .positions-scroll { overflow-y: auto; flex: 1; }
 .pos-meta {
-  flex: 1;
+  min-width: 0;
   font-family: 'JetBrains Mono', monospace;
   font-size: 9.5px;
   color: var(--t3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .alloc-totals {
   padding: 8px 12px;

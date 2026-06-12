@@ -1,7 +1,14 @@
 <template>
-  <div v-if="cfg" class="terminal-page">
+  <MobileTerminalLayout
+    v-if="cfg && isMobile"
+    :cfg="cfg"
+    :on-nav-select="onNavSelect"
+  >
+    <slot />
+  </MobileTerminalLayout>
+  <div v-else-if="cfg" class="terminal-page">
     <AppTopbar :active-tab="cfg.activeTab" :status="cfg.status" />
-    <RegimeStrip v-if="route.path !== '/macro'" v-bind="cfg.regime" />
+    <RegimeStrip v-bind="cfg.regime" :compact="route.path === '/macro'" />
     <div class="body">
       <SideNav
         :title="cfg.navTitle"
@@ -17,6 +24,7 @@
 
 <script setup lang="ts">
 const route = useRoute()
+const isMobile = useIsMobile()
 const { cfg, onNavSelect } = useTerminalLayout()
 useNavbarShortcuts()
 </script>

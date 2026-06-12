@@ -5,6 +5,7 @@
         <div class="runic-card-title" :style="{ color: analogC.title_color }">{{ analogC.title }}</div>
         <span class="runic-body">{{ analogC.subtitle }}</span>
       </div>
+      <div class="m-tbl-scroll">
       <table class="at">
         <thead>
           <tr>
@@ -27,6 +28,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
     </div>
 
     <div v-if="analogF" class="runic-card card-flush">
@@ -34,6 +36,7 @@
         <div class="runic-card-title" :style="{ color: analogF.title_color }">{{ analogF.title }}</div>
         <span class="runic-body">{{ analogF.subtitle }}</span>
       </div>
+      <div class="m-tbl-scroll">
       <table class="at">
         <thead>
           <tr>
@@ -55,6 +58,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
       <div v-if="analogF.footnote" class="analog-foot">{{ analogF.footnote }}</div>
     </div>
 

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>MindWealth UI — Why data shows 26 May 2026</title>
+  <style>
+    @page { margin: 22mm 20mm; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 11pt;
+      line-height: 1.45;
+      color: #1a1a1a;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+    h1 {
+      font-size: 20pt;
+      font-weight: 700;
+      margin: 0 0 4px;
+      color: #0f172a;
+    }
+    .subtitle {
+      font-size: 10pt;
+      color: #64748b;
+      margin-bottom: 20px;
+    }
+    h2 {
+      font-size: 13pt;
+      margin: 22px 0 8px;
+      color: #0f172a;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+    }
+    p { margin: 8px 0; }
+    .callout {
+      background: #f0f9ff;
+      border-left: 4px solid #0284c7;
+      padding: 12px 14px;
+      margin: 14px 0;
+      border-radius: 0 6px 6px 0;
+    }
+    .callout strong { color: #0369a1; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 10pt;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    th { background: #f1f5f9; font-weight: 600; }
+    code, pre {
+      font-family: "SF Mono", Menlo, Monaco, Consolas, monospace;
+      font-size: 9pt;
+    }
+    pre {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      padding: 10px 12px;
+      border-radius: 6px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+    ul { margin: 8px 0; padding-left: 22px; }
+    li { margin: 4px 0; }
+    .ok { color: #15803d; font-weight: 600; }
+    .stale { color: #b45309; font-weight: 600; }
+    .footer {
+      margin-top: 28px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 9pt;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Why the UI shows 26 May 2026</h1>
+<p class="subtitle">Backend handoff · MindWealth Alpha Terminal · 10 June 2026</p>
+
+<div class="callout">
+  <strong>TL;DR:</strong> The frontend <em>is</em> connected to the live API. It is not using mock data.
+  Signal/conviction/analytics data is stuck at <strong>2026-05-26</strong> because that is the newest date
+  in <code>conviction_store</code> / <code>trade_store/US/</code>. The daily conviction pipeline has not
+  published overlays after 26 May.
+</div>
+
+<h2>1. Frontend status (not a UI bug)</h2>
+<ul>
+  <li>UI server calls <code>NUXT_API_BASE_URL</code> → <code>http://51.20.53.218:8506</code> (API v1.2.0).</li>
+  <li><code>GET /api/meta</code> returns <span class="ok">live</span> label: <em>MindWealth API v1.2.0</em>.</li>
+  <li>Mock fallbacks use <strong>12 May</strong> or <strong>17 May</strong> — seeing <strong>26 May</strong> proves live API, not mocks.</li>
+  <li>“Last updated” in the topbar is parsed from the overlay CSV filename (e.g. <code>2026-05-26_outstanding_signal.csv</code>).</li>
+</ul>
+
+<h2>2. What the backend returns today</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Endpoint / data</th>
+      <th>Latest date</th>
+      <th>Source file (example)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>GET /conviction/overlays/dates</code></td>
+      <td class="stale">2026-05-26 (max)</td>
+      <td>—</td>
+    </tr>
+    <tr>
+      <td>Outstanding signals overlay</td>
+      <td class="stale">2026-05-26</td>
+      <td><code>trade_store/US/2026-05-26_outstanding_signal.csv</code></td>
+    </tr>
+    <tr>
+      <td>Sigma, breadth, sentiment layers, shortlist</td>
+      <td class="stale">2026-05-26</td>
+      <td><code>2026-05-26_*.csv</code></td>
+    </tr>
+    <tr>
+      <td>Macro runic nightly &amp; variables</td>
+      <td class="ok">2026-06-09</td>
+      <td>Computed (not trade-store overlays)</td>
+    </tr>
+  </tbody>
+</table>
+<p>
+  Overlay dates currently exposed: <code>["2026-05-15","2026-05-20","2026-05-25","2026-05-26"]</code> —
+  no June dates exist yet.
+</p>
+
+<h2>2. Data flow (simplified)</h2>
+<pre>
+Daily pipeline (backend)  →  trade_store/US/YYYY-MM-DD_*.csv
+                         →  conviction_store overlays
+                         →  GET /api/v1/... (MindWealth API)
+                         →  Nuxt /api/* routes (MindWealth UI)
+                         →  Browser
+</pre>
+<p>
+  The UI always requests the <strong>latest</strong> overlay when no <code>report_date</code> is passed.
+  It cannot show 10 June data until the backend creates <code>2026-06-10_*</code> (or latest trading day) files.
+</p>
+
+<h2>3. Root cause</h2>
+<p>
+  <code>POST /api/v1/conviction/pipeline/daily</code> (<code>run_daily_conviction_pipeline</code>) appears
+  not to have run successfully — or not on schedule — since <strong>26 May 2026</strong>.
+  Without new overlays, every CSV-backed screen (dashboard KPIs, signals, conviction, performance,
+  breadth, sentiment, shortlist) will keep showing 26 May.
+</p>
+
+<h2>4. Verification commands</h2>
+<p>Run on EC2 or any machine with API access:</p>
+<pre># Health + version
+curl -s http://51.20.53.218:8506/api/v1/health | jq
+
+# Latest overlay dates (should grow after pipeline runs)
+curl -s http://51.20.53.218:8506/api/v1/conviction/overlays/dates | jq
+
+# What "latest" outstanding signal resolves to
+curl -s -X POST http://51.20.53.218:8506/api/v1/conviction/signals/overlay-file \
+  -H "Content-Type: application/json" \
+  -d '{"report_name":"outstanding_signal.csv"}' | jq '.source_file, .row_count'
+
+# Compare: macro is fresher
+curl -s http://51.20.53.218:8506/api/v1/macro/runic/nightly | jq '.date'</pre>
+
+<h2>5. Recommended backend actions</h2>
+<ol>
+  <li>Check why <code>conviction/pipeline/daily</code> stopped after 2026-05-26 (cron, errors, disk, permissions).</li>
+  <li>Run pipeline for missing trading days (or backfill <code>report_date</code> per day).</li>
+  <li>Confirm <code>/conviction/overlays/dates</code> includes dates after 2026-05-26.</li>
+  <li>Ensure scheduled daily run is active (manifest / logs on success).</li>
+  <li>No frontend deploy needed — UI picks up new files automatically.</li>
+</ol>
+
+<h2>6. Optional dry run</h2>
+<pre>curl -s -X POST http://51.20.53.218:8506/api/v1/conviction/pipeline/daily \
+  -H "Content-Type: application/json" \
+  -d '{"dry_run":true}' | jq</pre>
+
+<div class="footer">
+  Generated for MindWealth UI ↔ API integration · Frontend repo: MindWealthUi · API: v1.2.0 @ 51.20.53.218:8506
+</div>
+
+</body>
+</html>

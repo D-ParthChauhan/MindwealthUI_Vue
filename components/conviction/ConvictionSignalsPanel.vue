@@ -1,6 +1,10 @@
 <template>
   <div>
-    <div class="cv-section-hint">Click any row to expand BQ drilldown · All fundamentals + FS detail in-line below row</div>
+    <div class="cv-section-hint">
+      <span class="m-lbl-long">Click any row to expand BQ drilldown · All fundamentals + FS detail in-line below row</span>
+      <span class="m-lbl-short">Tap a row for BQ · FS · fd detail</span>
+    </div>
+    <div class="m-tbl-scroll">
     <table class="tbl cv-tbl">
       <thead>
         <tr>
@@ -49,13 +53,17 @@
             <td :class="row.yieldTrap ? 'cv-yt-active' : 'cv-muted'">{{ row.yieldTrap ? 'ACTIVE' : '—' }}</td>
             <td>
               <div v-if="row.isEquity && row.detail" class="cv-row-actions" @click.stop>
-                <button type="button" class="cv-actn prim" @click="toggle(row.id)">BQ drill</button>
-                <button type="button" class="cv-actn" @click="$emit('fs-page', row.ticker)">FS page →</button>
+                <button type="button" class="cv-actn prim" @click="toggle(row.id)">
+                  <span class="m-lbl-long">BQ drill</span><span class="m-lbl-short">BQ</span>
+                </button>
+                <button type="button" class="cv-actn" @click="$emit('fs-page', row.ticker)">
+                  <span class="m-lbl-long">FS page →</span><span class="m-lbl-short">FS</span>
+                </button>
               </div>
               <span v-else class="cv-muted" style="font-size:9px">non-equity, no score</span>
             </td>
           </tr>
-          <tr v-if="row.isEquity && row.detail" class="cv-drawer-row">
+          <tr v-if="!isMobile && row.isEquity && row.detail" class="cv-drawer-row">
             <td colspan="12">
               <ConvictionRowDrawer
                 :open="openId === row.id"
@@ -69,6 +77,17 @@
         </template>
       </tbody>
     </table>
+    </div>
+
+    <div v-if="isMobile && openDrawerDetail" class="cv-drawer-slot">
+      <ConvictionRowDrawer
+        :open="true"
+        :detail="openDrawerDetail"
+        :initial-tab="drawerTab"
+        @close="openId = null"
+        @fs-page="$emit('fs-page', $event)"
+      />
+    </div>
   </div>
 </template>
 
@@ -90,8 +109,13 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ 'fs-page': [ticker: string]; select: [id: string] }>()
 
+const isMobile = useIsMobile()
 const openId = ref<string | null>(null)
 const drawerTab = ref<'bq' | 'fs' | 'fd'>('bq')
+
+const openDrawerDetail = computed(() =>
+  props.signals.find((s) => s.id === openId.value)?.detail,
+)
 
 watch(() => props.openRequest, (req) => {
   if (!req) return

@@ -1,6 +1,6 @@
-import { fetchFromBackend } from '../../utils/backend'
+import { loadRunicVariables } from '../../utils/mindwealth-data'
 import { getMockRunicVariables } from '../../utils/runic-mock-data'
 
 export default defineEventHandler(async () => {
-  return (await fetchFromBackend('/api/variables/current')) ?? getMockRunicVariables()
+  return (await loadRunicVariables()) ?? getMockRunicVariables()
 })

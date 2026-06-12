@@ -1,105 +1,342 @@
 <template>
-  <div class="wr-chart">
-    <svg width="100%" height="100%" viewBox="0 0 560 120" preserveAspectRatio="none">
+  <div
+    v-if="hasData"
+    class="wr-chart"
+    :aria-label="ariaLabel"
+    role="img"
+  >
+    <svg
+      class="wr-svg"
+      :viewBox="`0 0 ${W} ${H}`"
+      preserveAspectRatio="xMinYMid meet"
+    >
       <defs>
-        <linearGradient id="wr-gg" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stop-color="#27ae60" />
-          <stop offset="100%" stop-color="#27ae60" stop-opacity="0" />
+        <linearGradient :id="gradientId" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" :stop-color="primaryColor" />
+          <stop offset="100%" :stop-color="primaryColor" stop-opacity="0" />
         </linearGradient>
       </defs>
-      <line v-for="y in gridY" :key="y" x1="0" :y1="y" x2="560" :y2="y" stroke="#0e0e0e" stroke-width="1" />
-      <path v-if="areaPath" :d="areaPath" fill="url(#wr-gg)" opacity="0.07" />
+
+      <!-- Y-axis title -->
+      <text
+        :x="18"
+        :y="plot.top + plot.height / 2"
+        class="wr-axis-title"
+        :transform="`rotate(-90, 18, ${plot.top + plot.height / 2})`"
+        text-anchor="middle"
+      >
+        {{ yAxisLabel }}
+      </text>
+
+      <!-- Grid + Y ticks -->
+      <g v-for="tick in yTicks" :key="tick.value">
+        <line
+          :x1="plot.left"
+          :y1="tick.y"
+          :x2="plot.left + plot.width"
+          :y2="tick.y"
+          class="wr-grid"
+        />
+        <text :x="plot.left - 8" :y="tick.y + 4" class="wr-tick-y" text-anchor="end">
+          {{ tick.label }}
+        </text>
+      </g>
+
+      <!-- Plot border -->
+      <rect
+        :x="plot.left"
+        :y="plot.top"
+        :width="plot.width"
+        :height="plot.height"
+        fill="none"
+        stroke="rgba(255,255,255,0.08)"
+        stroke-width="1"
+      />
+
+      <!-- Area fill under primary series -->
+      <path v-if="areaPath" :d="areaPath" :fill="`url(#${gradientId})`" opacity="0.08" />
+
+      <!-- Series lines -->
       <path
-        v-for="(line, i) in lines"
-        :key="i"
+        v-for="(line, i) in renderedLines"
+        :key="line.name"
         class="dp"
+        :class="{ 'dp-partial': line.dashed }"
         :d="line.d"
         :stroke="line.color"
-        stroke-width="line.width"
+        :stroke-width="line.strokeWidth"
         fill="none"
         :opacity="line.opacity"
-        :style="{ animationDelay: `${0.3 + i * 0.3}s` }"
+        :style="{ animationDelay: `${0.2 + i * 0.25}s` }"
       />
+
+      <!-- Data point markers -->
+      <g v-for="line in renderedLines" :key="`${line.name}-pts`">
+        <circle
+          v-for="(pt, pi) in line.points"
+          :key="pi"
+          :cx="pt.x"
+          :cy="pt.y"
+          r="4.5"
+          :fill="line.color"
+          :opacity="line.opacity"
+        />
+      </g>
+
+      <!-- X-axis labels -->
+      <g v-for="(lbl, i) in xLabels" :key="lbl">
+        <text
+          :x="xPos(i)"
+          :y="xTickY"
+          class="wr-tick-x"
+          text-anchor="middle"
+        >
+          {{ lbl }}
+        </text>
+      </g>
+
+      <!-- X-axis title -->
+      <text
+        :x="plot.left + plot.width / 2"
+        :y="xTitleY"
+        class="wr-axis-sub"
+        text-anchor="middle"
+      >
+        {{ xAxisLabel }}
+      </text>
     </svg>
-    <div v-if="showDegradedLabel" class="wr-note">Forward trend softening</div>
+    <div class="wr-legend-bar">
+      <div
+        v-for="item in legendItems"
+        :key="item.name"
+        class="wr-legend-item"
+      >
+        <span
+          v-if="item.kind === 'series'"
+          class="wr-swatch"
+          :class="{ 'wr-swatch-dashed': item.dashed }"
+          :style="{
+            borderColor: item.color,
+            borderWidth: `${item.strokeWidth}px`,
+            opacity: item.opacity,
+          }"
+        />
+        <span class="wr-legend-text">{{ item.name }}</span>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import type { DashboardResponse } from '~/types/api'
+import {
+  formatWinRateChartCaption,
+  getChartXLabels,
+  resolveSeriesStyle,
+} from '~/utils/win-rate-chart'
 
 const props = defineProps<{
   chart?: DashboardResponse['win_rate_chart']
 }>()
 
-const gridY = [30, 60, 90]
+const W = 640
+const H = 340
+const plot = { left: 52, top: 40, width: 572, height: 232 }
+const xTickY = plot.top + plot.height + 22
+const xTitleY = plot.top + plot.height + 42
 
-const colors: Record<string, string> = {
-  'Long WR': '#27ae60',
-  'Short WR': '#c0392b',
-  'Backtested WR': '#C9A84C',
-}
+const gradientId = 'wr-gg-dashboard'
 
 const series = computed(() => props.chart?.series ?? [])
+const hasData = computed(() => series.value.some((s) => s.points.length > 0))
 
-function seriesToPath(points: Array<{ x: string; y: number }>, yOffset = 0) {
+const yScale = computed(() => {
+  const scale = props.chart?.scale
+  if (scale) return scale
+  const values = series.value.flatMap((s) => s.points.map((p) => p.y))
+  if (!values.length) return { y_min: 0, y_max: 100, y_ticks: [0, 50, 100] }
+  const rawMin = Math.min(...values)
+  const rawMax = Math.max(...values)
+  return {
+    y_min: Math.max(0, Math.floor(rawMin / 5) * 5 - 5),
+    y_max: Math.min(100, Math.ceil(rawMax / 5) * 5 + 5),
+    y_ticks: [0, 50, 100],
+  }
+})
+
+const yAxisLabel = computed(() => props.chart?.properties.y_axis ?? 'Win rate (%)')
+const xAxisLabel = computed(() => props.chart?.properties.x_axis ?? 'X')
+
+const xLabels = computed(() =>
+  props.chart ? getChartXLabels(props.chart) : [],
+)
+
+function yToPlot(y: number): number {
+  const { y_min, y_max } = yScale.value
+  const span = Math.max(y_max - y_min, 1)
+  return plot.top + plot.height - ((y - y_min) / span) * plot.height
+}
+
+function xPos(index: number): number {
+  const n = xLabels.value.length
+  if (n <= 1) return plot.left + plot.width / 2
+  return plot.left + (index / (n - 1)) * plot.width
+}
+
+function pointX(label: string): number {
+  const idx = xLabels.value.indexOf(label)
+  return idx >= 0 ? xPos(idx) : plot.left
+}
+
+const yTicks = computed(() =>
+  (yScale.value.y_ticks ?? []).map((value) => ({
+    value,
+    y: yToPlot(value),
+    label: `${value}%`,
+  })),
+)
+
+function seriesToPath(points: Array<{ x: string; y: number }>) {
   if (!points.length) return ''
-  const n = points.length
-  const xs = points.map((_, i) => (i / Math.max(n - 1, 1)) * 560)
-  const ys = points.map((p) => 110 - (p.y / 100) * 70 + yOffset)
-  let d = `M${xs[0]},${ys[0]}`
-  for (let i = 1; i < n; i++) {
-    const cpx = (xs[i - 1] + xs[i]) / 2
-    d += ` C${cpx},${ys[i - 1]} ${cpx},${ys[i]} ${xs[i]},${ys[i]}`
+  const coords = points.map((p) => ({ x: pointX(p.x), y: yToPlot(p.y) }))
+  let d = `M${coords[0].x},${coords[0].y}`
+  for (let i = 1; i < coords.length; i++) {
+    const cpx = (coords[i - 1].x + coords[i].x) / 2
+    d += ` C${cpx},${coords[i - 1].y} ${cpx},${coords[i].y} ${coords[i].x},${coords[i].y}`
   }
   return d
 }
 
-const lines = computed(() =>
-  series.value.map((s, i) => ({
-    d: seriesToPath(s.points, i * 3),
-    color: colors[s.name] ?? '#27ae60',
-    width: s.name === 'Long WR' ? 2 : 1.5,
-    opacity: s.name === 'Short WR' ? 0.6 : 1,
-  })),
+const renderedLines = computed(() =>
+  series.value.map((s, i) => {
+    const fallback = resolveSeriesStyle(s.name, i)
+    const partial = s.points.length < xLabels.value.length
+    return {
+      name: s.name,
+      color: s.color ?? fallback.color,
+      strokeWidth: s.stroke_width ?? fallback.stroke_width,
+      opacity: s.opacity ?? fallback.opacity,
+      dashed: partial,
+      d: seriesToPath(s.points),
+      points: s.points.map((p) => ({ x: pointX(p.x), y: yToPlot(p.y) })),
+    }
+  }),
+)
+
+const primaryColor = computed(
+  () => renderedLines.value[0]?.color ?? '#27ae60',
 )
 
 const areaPath = computed(() => {
-  const primary = series.value.find((s) => s.name === 'Long WR')
-  if (!primary?.points.length) return ''
-  const line = seriesToPath(primary.points)
-  const lastX = 560
-  return `${line} L${lastX},120 L0,120 Z`
+  const primary = renderedLines.value[0]
+  if (!primary?.d) return ''
+  const last = primary.points[primary.points.length - 1]
+  const first = primary.points[0]
+  if (!last || !first) return ''
+  const base = plot.top + plot.height
+  return `${primary.d} L${last.x},${base} L${first.x},${base} Z`
 })
 
-const showDegradedLabel = computed(() => series.value.some((s) => s.name === 'Short WR'))
+const legendItems = computed(() =>
+  renderedLines.value.map((l) => ({
+    kind: 'series' as const,
+    name: l.name,
+    color: l.color,
+    strokeWidth: l.strokeWidth,
+    opacity: l.opacity,
+    dashed: l.dashed,
+  })),
+)
+
+const ariaLabel = computed(() =>
+  props.chart ? formatWinRateChartCaption(props.chart) : 'Win rate chart',
+)
 </script>
 
 <style scoped>
 .wr-chart {
-  position: relative;
+  display: flex;
+  flex-direction: column;
   width: 100%;
-  height: 100%;
+  min-height: 392px;
 }
-.wr-note {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
-  font-family: 'Inter', sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  color: #d6a56f;
-  letter-spacing: 0.1px;
-  background: rgba(4, 4, 4, 0.5);
-  padding: 2px 6px;
+.wr-svg {
+  display: block;
+  width: 100%;
+  height: 340px;
+  min-height: 340px;
+  flex-shrink: 0;
+}
+.wr-legend-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 18px;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 4px;
+  background: rgba(0, 0, 0, 0.45);
+}
+.wr-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.wr-swatch {
+  display: inline-block;
+  width: 20px;
+  border-top-style: solid;
+  flex-shrink: 0;
+}
+.wr-swatch-dashed {
+  border-top-style: dashed;
+}
+.wr-legend-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11.5px;
+  color: var(--t1);
+  white-space: nowrap;
+}
+.wr-grid {
+  stroke: rgba(255, 255, 255, 0.05);
+  stroke-width: 1;
+}
+.wr-tick-y,
+.wr-tick-x {
+  font-family: 'JetBrains Mono', monospace;
+}
+.wr-tick-y {
+  font-size: 12px;
+  fill: var(--t2);
+}
+.wr-tick-x {
+  font-size: 12.5px;
+  fill: var(--t1);
+}
+.wr-axis-title,
+.wr-axis-sub {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  fill: var(--t2);
+  letter-spacing: 1px;
+  text-transform: uppercase;
 }
 .dp {
   stroke-dasharray: 1500;
   stroke-dashoffset: 1500;
-  animation: dr 2.5s ease 0.3s forwards;
+  animation: dr 2s ease 0.2s forwards;
+}
+.dp-partial {
+  animation-name: dr-partial;
 }
 @keyframes dr {
   to { stroke-dashoffset: 0; }
+}
+@keyframes dr-partial {
+  to {
+    stroke-dashoffset: 0;
+    stroke-dasharray: 7 5;
+  }
 }
 </style>
