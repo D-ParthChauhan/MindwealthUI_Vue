@@ -41,7 +41,7 @@
       <div class="dash-grid">
         <div class="card dash-chart">
           <div class="ct">
-            Win Rate Trend{{ data.win_rate_chart?.properties.metric ? ` — ${data.win_rate_chart.properties.metric}` : '' }}
+            Win Rate {{ data.win_rate_chart?.properties.metric ? ` — ${data.win_rate_chart.properties.metric}` : '' }}
           </div>
           <div class="m-chart-scroll">
             <div class="chart-wrap">
@@ -61,9 +61,16 @@
                 <tr
                   v-for="(sig, i) in topSignals"
                   :key="`${sig.ticker}-${sig.functionInterval}-${i}`"
-                  :class="{ 'row-degraded': sig.dimmed }"
+                  :class="{ 'row-fwd-degraded': sig.fwdDegraded }"
                 >
-                  <td><div class="tkr">{{ sig.ticker }}</div></td>
+                  <td>
+                    <div class="tkr-cell">
+                      <span class="fwd-deg-slot" aria-hidden="true">
+                        <span v-if="sig.fwdDegraded" class="fwd-deg-line" title="FWD degrading" />
+                      </span>
+                      <div class="tkr">{{ sig.ticker }}</div>
+                    </div>
+                  </td>
                   <td class="fn-cell">{{ sig.functionInterval }}</td>
                   <td><DirectionBadge :direction="sig.direction" /></td>
                   <td class="wr" :class="sig.wrClass">{{ sig.wr }}</td>
@@ -149,10 +156,33 @@ const topSignals = computed(() =>
 .dash-signals-tbl .tkr {
   color: #fff;
 }
+.dash-signals-tbl .tkr-cell {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+.dash-signals-tbl .fwd-deg-slot {
+  width: 7px;
+  min-width: 7px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.dash-signals-tbl .fwd-deg-line {
+  display: block;
+  width: 1px;
+  height: 13px;
+  border-radius: 1px;
+  background: var(--gold);
+}
+.dash-signals-tbl tr.row-fwd-degraded .tfn {
+  color: #e2e6ec;
+}
 .dash-signals-tbl .wr.hi { color: #3ddc84; }
 .dash-signals-tbl .wr.mid { color: #e8c45a; }
 .dash-signals-tbl .wr.lo { color: #f06a5a; }
-.dash-signals-tbl tr.row-degraded td:first-child {
-  box-shadow: inset 2px 0 0 rgba(201, 168, 76, 0.45);
+.dash-signals-tbl tr.row-fwd-degraded .wr.lo {
+  color: #ff8a7a;
 }
 </style>

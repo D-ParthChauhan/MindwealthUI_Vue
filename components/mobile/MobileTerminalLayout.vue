@@ -8,10 +8,15 @@
       v-bind="cfg.regime"
       compact
       class="m-regime"
-    />
+    >
+      <template v-if="showSignalsInterval" #trailing>
+        <SignalsIntervalSelect />
+      </template>
+    </RegimeStrip>
     <MobileSubNav
       :groups="cfg.navGroups"
       :active-id="cfg.navActiveId"
+      :multi-active-ids="cfg.multiActiveIds"
       @select="onNavSelect"
     />
     <div class="m-content">
@@ -28,6 +33,7 @@ import type { TerminalPageConfig } from '~/constants/terminal-configs'
 const props = defineProps<{
   cfg: TerminalPageConfig
   onNavSelect: (id: string) => void
+  showSignalsInterval?: boolean
 }>()
 
 const pageTitle = computed(() => {

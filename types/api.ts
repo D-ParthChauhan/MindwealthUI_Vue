@@ -96,6 +96,8 @@ export interface Signal {
   confirmation_status?: string
   exit_status?: string
   current_mtm?: string
+  /** Full overlay CSV row as returned by the API (all columns). */
+  raw_fields?: Record<string, unknown>
 }
 
 export interface SignalsSummary {
@@ -146,6 +148,49 @@ export interface PerformanceResponse {
     avg_win_rate: number
     total_trades: number
     avg_sharpe: number
+  }
+}
+
+export interface HorizontalNewHighRow {
+  report_type: string
+  symbol: string
+  today_price: string
+  new_highest: string
+}
+
+export interface HorizontalNewHighResponse {
+  meta?: ApiMeta
+  report_date?: string
+  row_count: number
+  rows: HorizontalNewHighRow[]
+}
+
+export interface CombinedPerformanceReportRow {
+  section: 'forward_testing' | 'latest_performance'
+  strategy: string
+  interval: string
+  signal_type: string
+  total_trades: number
+  win_percentage: number
+  avg_backtested_win_rate: number
+  best_profit?: number
+  worst_profit?: number
+  avg_profit?: number
+  max_holding_days?: number
+  min_holding_days?: number
+  avg_holding_days?: number
+}
+
+export interface CombinedPerformanceReportResponse {
+  meta?: ApiMeta
+  report_date?: string
+  forward_testing: CombinedPerformanceReportRow[]
+  latest_performance: CombinedPerformanceReportRow[]
+  aggregates?: {
+    avg_forward_wr: number
+    avg_backtest_wr: number
+    total_trades: number
+    degrading_count: number
   }
 }
 

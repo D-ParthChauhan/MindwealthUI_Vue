@@ -1,8 +1,12 @@
 import { buildWinRateChart } from '~/utils/win-rate-chart'
+import { signalToRawFields } from './signal-parsers'
 import type {
   ApiMeta,
   BreadthResponse,
+  CombinedPerformanceReportResponse,
+  CombinedPerformanceReportRow,
   DashboardResponse,
+  HorizontalNewHighResponse,
   MonitoredTradesResponse,
   OverwatchResponse,
   PerformanceResponse,
@@ -239,6 +243,11 @@ export function getMockDashboard(): DashboardResponse {
   }
 }
 
+const mockSignalsEnriched: Signal[] = mockSignals.map((s) => ({
+  ...s,
+  raw_fields: signalToRawFields(s),
+}))
+
 export function getMockSignalsOutstanding(): SignalsListResponse {
   return {
     meta: mockMeta,
@@ -251,7 +260,7 @@ export function getMockSignalsOutstanding(): SignalsListResponse {
       new_short: 2,
       shortlisted: 7,
     },
-    signals: mockSignals,
+    signals: mockSignalsEnriched,
     function_counts: [
       { name: 'FRACTAL TRACK', count: 28 },
       { name: 'TRENDPULSE', count: 19 },
@@ -262,7 +271,7 @@ export function getMockSignalsOutstanding(): SignalsListResponse {
 }
 
 export function getMockSignalsNew(): SignalsListResponse {
-  const newSignals = mockSignals.filter((s) =>
+  const newSignals = mockSignalsEnriched.filter((s) =>
     ['2026-05-09', '2026-05-10', '2026-05-11'].includes(s.signal_date),
   )
   return {
@@ -278,6 +287,117 @@ export function getMockSignalsNew(): SignalsListResponse {
     },
     signals: newSignals,
     function_counts: getMockSignalsOutstanding().function_counts,
+  }
+}
+
+export function getMockAllSignals(): SignalsListResponse {
+  return {
+    ...getMockSignalsOutstanding(),
+    summary: {
+      ...getMockSignalsOutstanding().summary,
+      long: 120,
+      short: 33,
+      long_pct: 78,
+      new_long: 0,
+      new_short: 0,
+      shortlisted: 0,
+    },
+    signals: [
+      ...mockSignalsEnriched,
+      ...mockSignalsEnriched.map((s, i) => ({ ...s, symbol: `${s.symbol}_${i}` })),
+    ],
+  }
+}
+
+export function getMockHorizontalNewHigh(): HorizontalNewHighResponse {
+  return {
+    meta: mockMeta,
+    report_date: '2026-05-12',
+    row_count: 3,
+    rows: [
+      {
+        report_type: 'New High',
+        symbol: 'AAPL',
+        today_price: '$210.50',
+        new_highest: '√ $212.00',
+      },
+      {
+        report_type: 'Horizontal',
+        symbol: 'MSFT',
+        today_price: '$425.10',
+        new_highest: '—',
+      },
+      {
+        report_type: 'New High',
+        symbol: 'NVDA',
+        today_price: '$118.20',
+        new_highest: '√ $119.80',
+      },
+    ],
+  }
+}
+
+export function getMockCombinedPerformanceReport(): CombinedPerformanceReportResponse {
+  const forward_testing: CombinedPerformanceReportRow[] = [
+    {
+      section: 'forward_testing',
+      strategy: 'FRACTAL TRACK',
+      interval: 'Monthly',
+      signal_type: 'Long',
+      total_trades: 85,
+      win_percentage: 100,
+      avg_backtested_win_rate: 88,
+      best_profit: 32.5,
+      worst_profit: -8.2,
+      avg_profit: 12.1,
+    },
+    {
+      section: 'forward_testing',
+      strategy: 'DELTADRIFT',
+      interval: 'Daily',
+      signal_type: 'Short',
+      total_trades: 9,
+      win_percentage: 71.3,
+      avg_backtested_win_rate: 88,
+      best_profit: 18.2,
+      worst_profit: -12.4,
+      avg_profit: 6.8,
+    },
+    {
+      section: 'forward_testing',
+      strategy: 'TRENDPULSE',
+      interval: 'Weekly',
+      signal_type: 'Long',
+      total_trades: 64,
+      win_percentage: 92.9,
+      avg_backtested_win_rate: 86,
+      best_profit: 28.1,
+      worst_profit: -9.5,
+      avg_profit: 10.4,
+    },
+  ]
+  const latest_performance: CombinedPerformanceReportRow[] = [
+    {
+      section: 'latest_performance',
+      strategy: 'LATEST PERFORMANCE',
+      interval: 'Weekly',
+      signal_type: 'Long',
+      total_trades: 48,
+      win_percentage: 89.9,
+      avg_backtested_win_rate: 88,
+    },
+  ]
+  return {
+    meta: mockMeta,
+    report_date: '2026-05-12',
+    forward_testing,
+    latest_performance,
+    aggregates: {
+      avg_forward_wr: 88.1,
+      avg_backtest_wr: 87.3,
+      total_trades: 158,
+      degrading_count: 1,
+    },
   }
 }
 

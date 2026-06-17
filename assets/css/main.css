@@ -130,13 +130,15 @@ button{font:inherit}
 .rssep{width:1px;height:16px;background:var(--b3);flex-shrink:0}
 .rsi{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--t2);display:flex;align-items:center;gap:5px;white-space:nowrap}
 .rsi .rsv,.rsr .rsv{font-weight:500}
-.rsr{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;flex-shrink:0}
+.rsr{margin-left:0;font-family:'JetBrains Mono',monospace;font-size:11px;white-space:nowrap;flex-shrink:0}
+.rs-tail{margin-left:auto;display:flex;align-items:center;gap:10px;flex-shrink:0;padding-left:8px}
 .rs-compact{padding:0 14px;height:32px;gap:6px}
 .rs-compact .rsd{width:6px;height:6px}
 .rs-compact .rsl{font-size:9px;letter-spacing:0.4px;flex-shrink:0}
 .rs-compact .rssep{height:11px}
 .rs-compact .rsi{font-size:9px;gap:2px;flex-shrink:0}
-.rs-compact .rsr{font-size:9px;margin-left:auto;padding-left:6px;flex-shrink:0}
+.rs-compact .rsr{font-size:9px;margin-left:0;padding-left:0;flex-shrink:0}
+.rs-compact .rs-tail{margin-left:auto;padding-left:6px;gap:6px}
 
 /* BODY */
 .body{display:flex;flex:1;overflow:hidden;min-height:0}

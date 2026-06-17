@@ -12,6 +12,7 @@ import type {
   SentimentResponse,
   SignalCountsResponse,
 } from '~/types/api'
+import { SIGNAL_FUNCTION_FILTER_IDS } from '~/utils/signal-filters'
 
 export interface TerminalPageConfig {
   activeTab: TabId
@@ -38,6 +39,7 @@ export interface TerminalPageConfig {
     static?: string
   }>
   navActiveId: string
+  multiActiveIds?: string[]
   agentItems: Array<{ dot: string; label: string; right?: boolean }>
   claudeAutoTrigger?: boolean
 }
@@ -98,12 +100,18 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId' | 'regime' 
         ],
       },
       {
-        label: 'Filter',
+        label: 'Filter · Functions',
         items: [
           { id: 'fractal-f', label: 'Fractal Track', dot: 'off' },
           { id: 'trend-f', label: 'TrendPulse', dot: 'off' },
           { id: 'delta-f', label: 'DeltaDrift', dot: 'off' },
-          { id: 'interval-f', label: 'By interval', dot: 'off' },
+          { id: 'band-f', label: 'Band Matrix', dot: 'off' },
+          { id: 'sigma-f', label: 'SigmaShell', dot: 'off' },
+          { id: 'pulse-f', label: 'PulseGauge', dot: 'off' },
+          { id: 'alt-f', label: 'Altitude Alpha', dot: 'off' },
+          { id: 'osc-f', label: 'Oscillator Delta', dot: 'off' },
+          { id: 'base-f', label: 'Baseline Divergence', dot: 'off' },
+          { id: 'sbi-f', label: 'SBI', dot: 'off' },
         ],
       },
     ],
@@ -298,6 +306,7 @@ export function useTerminalLayout() {
   const route = useRoute()
   const navActiveId = useState<string>('terminal-nav-id', () => 'dashboard')
   const { counts } = useSignalCounts()
+  const { toggleFunctionFilter, multiActiveIds, ensureSignalViewNav } = useSignalFilters()
   const { data: convictionData } = useConviction()
   const { data: dashboardData } = useFetch<DashboardResponse>('/api/dashboard', { key: 'api-dashboard' })
   const { data: sentimentData } = useFetch<SentimentResponse>('/api/sentiment', { key: 'api-sentiment' })
@@ -345,6 +354,7 @@ export function useTerminalLayout() {
       regime: buildRegimeStrip(route.path, stripCtx),
       agentItems: buildAgentItems(route.path, stripCtx),
       navActiveId: navActiveId.value,
+      multiActiveIds: route.path === '/signals' ? multiActiveIds.value : undefined,
     } satisfies TerminalPageConfig
   })
 
@@ -353,6 +363,7 @@ export function useTerminalLayout() {
     (path) => {
       const base = configs[path]
       if (!base) return
+      if (path === '/signals') ensureSignalViewNav(navActiveId)
       const navIds = base.navGroups.flatMap((g) => g.items).map((i) => i.id)
       if (!navIds.includes(navActiveId.value)) {
         navActiveId.value = base.defaultNavId
@@ -373,6 +384,10 @@ export function useTerminalLayout() {
   )
 
   function onNavSelect(id: string) {
+    if (route.path === '/signals' && SIGNAL_FUNCTION_FILTER_IDS.has(id)) {
+      toggleFunctionFilter(id)
+      return
+    }
     navActiveId.value = id
     const item = cfg.value?.navGroups.flatMap((g) => g.items).find((i) => i.id === id)
     if (item?.to) navigateTo(item.to)

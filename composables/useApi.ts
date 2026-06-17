@@ -3,7 +3,9 @@ import type {
   ChatRequest,
   ChatResponse,
   ChatSessionsResponse,
+  CombinedPerformanceReportResponse,
   DashboardResponse,
+  HorizontalNewHighResponse,
   MonitoredTradesResponse,
   OverwatchResponse,
   PerformanceResponse,
@@ -28,6 +30,19 @@ export function useApi() {
     useFetch<SignalsListResponse>('/api/signals/new', {
       key: `api-signals-new-${JSON.stringify(query ?? {})}`,
       query,
+    })
+
+  const fetchAllSignals = () =>
+    useFetch<SignalsListResponse>('/api/signals/all', { key: 'api-signals-all' })
+
+  const fetchHorizontalNewHigh = () =>
+    useFetch<HorizontalNewHighResponse>('/api/signals/horizontal-new-high', {
+      key: 'api-signals-horizontal-new-high',
+    })
+
+  const fetchCombinedPerformanceReport = () =>
+    useFetch<CombinedPerformanceReportResponse>('/api/signals/combined-performance', {
+      key: 'api-signals-combined-performance',
     })
 
   const fetchSignalCounts = () =>
@@ -65,6 +80,9 @@ export function useApi() {
     fetchDashboard,
     fetchSignalsOutstanding,
     fetchSignalsNew,
+    fetchAllSignals,
+    fetchHorizontalNewHigh,
+    fetchCombinedPerformanceReport,
     fetchSignalCounts,
     fetchPerformance,
     fetchBreadth,

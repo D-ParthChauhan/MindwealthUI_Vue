@@ -92,6 +92,25 @@ export function recordToSignal(rec: Record<string, unknown>): Signal {
     exit_status: String(rec['Exit Signal Date/Price[$]'] ?? 'N/A'),
     current_mtm: mtm,
     status,
+    raw_fields: { ...rec },
+  }
+}
+
+/** Rebuild overlay-style fields from a parsed signal (mock / legacy rows). */
+export function signalToRawFields(s: Signal): Record<string, unknown> {
+  if (s.raw_fields && Object.keys(s.raw_fields).length > 0) return { ...s.raw_fields }
+  return {
+    Function: s.function,
+    Interval: s.interval,
+    [SYM_COL]: `${s.symbol}, ${s.signal_type}, ${s.signal_date} Price: ${s.signal_price}`,
+    [WIN_COL]: `${s.win_rate}%, ${s.num_trades}`,
+    [FWD_COL]: s.forward_wr != null ? `${s.forward_wr}%` : 'No Information',
+    Spread: s.spread ?? 'No Information',
+    [MTM_COL]: s.current_mtm ?? '—',
+    [INTERVAL_COL]: s.confirmation_status ?? '',
+    'Exit Signal Date/Price[$]': s.exit_status ?? 'N/A',
+    'Backtested Strategy CAGR [%]': s.strategy_cagr ?? 'No Information',
+    'Backtested Strategy Sharpe Ratio': s.strategy_sharpe ?? 'No Information',
   }
 }
 

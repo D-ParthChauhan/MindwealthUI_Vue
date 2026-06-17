@@ -63,11 +63,13 @@ const props = defineProps<{
     static?: string
   }>
   activeId: string
+  multiActiveIds?: string[]
 }>()
 
 defineEmits<{ select: [id: string] }>()
 
 function isItemActive(item: NavItem) {
+  if (props.multiActiveIds?.includes(item.id)) return true
   if (props.activeId === item.id) return true
   return item.chips?.some((chip) => chip.id === props.activeId) ?? false
 }

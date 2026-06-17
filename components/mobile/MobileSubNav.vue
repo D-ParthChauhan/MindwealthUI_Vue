@@ -27,6 +27,7 @@ type NavItem = {
 const props = defineProps<{
   groups: Array<{ items: NavItem[] }>
   activeId: string
+  multiActiveIds?: string[]
 }>()
 
 defineEmits<{ select: [id: string] }>()
@@ -34,6 +35,7 @@ defineEmits<{ select: [id: string] }>()
 const items = computed(() => props.groups.flatMap((g) => g.items))
 
 function isActive(item: NavItem) {
+  if (props.multiActiveIds?.includes(item.id)) return true
   if (props.activeId === item.id) return true
   return item.chips?.some((c) => c.id === props.activeId) ?? false
 }

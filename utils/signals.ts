@@ -1,4 +1,5 @@
 import type { Signal, TopSignal } from '~/types/api'
+import { abbreviateFunction, abbreviateInterval, signalKey } from '~/utils/signal-detail'
 
 export function deriveSignalStatus(s: Signal): 'active' | 'degraded' {
   if (s.status) return s.status
@@ -41,9 +42,13 @@ export function mapSignalRow(s: Signal) {
   const status = deriveSignalStatus(s)
   const sentiment = s.sentiment_display ?? sentimentDisplay(s.spread)
   return {
+    key: signalKey(s),
+    signal: s,
     ticker: s.symbol,
     function: s.function,
+    functionShort: abbreviateFunction(s.function),
     interval: s.interval,
+    intervalShort: abbreviateInterval(s.interval),
     direction: formatDirection(s.signal_type),
     btWr: `${s.win_rate.toFixed(1)}%`,
     btClass: winRateClass(s.win_rate),
@@ -54,7 +59,7 @@ export function mapSignalRow(s: Signal) {
     tagClass: sentimentTagClass(sentiment),
     status: status === 'active' ? '✓ active' : '⚠ degraded FWD',
     statusColor: status === 'active' ? 'var(--green)' : 'var(--gold)',
-    dimmed: status === 'degraded',
+    fwdDegraded: status === 'degraded',
     functionFilter: s.function.toUpperCase(),
   }
 }
@@ -78,6 +83,6 @@ export function mapTopSignalRow(s: TopSignal, degradedStrategy?: string | null) 
     wrClass: winRateClass(s.win_rate),
     tag: tagText,
     tagClass: sentimentTagClass(tagText),
-    dimmed: isDegraded,
+    fwdDegraded: isDegraded,
   }
 }

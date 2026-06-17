@@ -4,7 +4,10 @@ import type {
   ChatRequest,
   ChatResponse,
   ChatSessionsResponse,
+  CombinedPerformanceReportResponse,
+  CombinedPerformanceReportRow,
   DashboardResponse,
+  HorizontalNewHighResponse,
   MonitoredTradesResponse,
   OverwatchResponse,
   PerformanceResponse,
@@ -274,6 +277,119 @@ export async function loadNewSignals(): Promise<SignalsListResponse | null> {
     meta: metaFromSource(overlay.source_file),
     summary: buildSignalsSummary(signals),
     signals,
+  }
+}
+
+export async function loadAllSignals(): Promise<SignalsListResponse | null> {
+  const overlay = await fetchOverlayFile('all_signal.csv')
+  if (!overlay?.records?.length) return null
+  const signals = recordsToSignals(overlay.records)
+  const functionCounts = Object.entries(
+    signals.reduce<Record<string, number>>((acc, s) => {
+      const k = s.function.toUpperCase()
+      acc[k] = (acc[k] ?? 0) + 1
+      return acc
+    }, {}),
+  ).map(([name, count]) => ({ name, count }))
+
+  return {
+    meta: metaFromSource(overlay.source_file),
+    summary: buildSignalsSummary(signals),
+    signals,
+    function_counts: functionCounts,
+  }
+}
+
+export async function loadHorizontalNewHigh(): Promise<HorizontalNewHighResponse | null> {
+  const raw = await mindwealthFetch<{
+    report_date?: string
+    source_file?: string
+    row_count?: number
+    records?: Record<string, unknown>[]
+  }>('/signals/reports/horizontal-new-high/latest')
+  if (!raw?.records?.length) return null
+
+  return {
+    meta: metaFromSource(raw.source_file),
+    report_date: raw.report_date,
+    row_count: raw.row_count ?? raw.records.length,
+    rows: raw.records.map((rec) => ({
+      report_type: String(rec['Report Type'] ?? ''),
+      symbol: String(rec.Symbol ?? ''),
+      today_price: String(rec['Today price'] ?? rec['Today Price'] ?? ''),
+      new_highest: String(rec['New Highest'] ?? rec['New highest'] ?? ''),
+    })),
+  }
+}
+
+function combinedPerformanceRowFromRecord(
+  rec: Record<string, unknown>,
+  section: CombinedPerformanceReportRow['section'],
+): CombinedPerformanceReportRow | null {
+  const fn = String(rec.Function ?? '')
+  if (section === 'forward_testing' && fn !== 'Forward Testing') return null
+  if (section === 'latest_performance' && fn !== 'Latest Performance') return null
+
+  const strategy =
+    section === 'forward_testing'
+      ? String(rec.Strategy ?? '')
+      : String(rec.Strategy ?? 'LATEST_PERFORMANCE').replace(/_/g, ' ')
+  const profitField = String(rec['Profit [%] (Max/Min/Avg.)'] ?? '')
+  const profits = profitField.match(/([\d.-]+)%/g)?.map((p) => Number(p.replace('%', ''))) ?? []
+  const holding = String(rec['Holding Period (days) (Max/Min/Avg)'] ?? '')
+  const holdDays = holding.match(/([\d.]+)\s*days?/gi)?.map((d) => Number(d.replace(/[^\d.]/g, ''))) ?? []
+
+  return {
+    section,
+    strategy,
+    interval: String(rec.Interval ?? ''),
+    signal_type: String(rec['Signal Type'] ?? 'Long'),
+    total_trades: Number(rec['Total Analysed Trades'] ?? 0),
+    win_percentage: parsePercentValue(rec['Win Percentage']),
+    avg_backtested_win_rate: parsePercentValue(rec['Avg Backtested Win Rate [%]']),
+    best_profit: profits[0],
+    worst_profit: profits[1],
+    avg_profit: profits[2],
+    max_holding_days: holdDays[0],
+    min_holding_days: holdDays[1],
+    avg_holding_days: holdDays[2],
+  }
+}
+
+export async function loadCombinedPerformanceReport(): Promise<CombinedPerformanceReportResponse | null> {
+  const overlay = await fetchOverlayFile('combined_performance_report.csv')
+  if (!overlay?.records?.length) return null
+
+  const forward_testing = overlay.records
+    .map((rec) => combinedPerformanceRowFromRecord(rec, 'forward_testing'))
+    .filter((r): r is CombinedPerformanceReportRow => r != null)
+  const latest_performance = overlay.records
+    .map((rec) => combinedPerformanceRowFromRecord(rec, 'latest_performance'))
+    .filter((r): r is CombinedPerformanceReportRow => r != null)
+
+  const avgFwd =
+    forward_testing.length > 0
+      ? forward_testing.reduce((a, r) => a + r.win_percentage, 0) / forward_testing.length
+      : 0
+  const avgBt =
+    forward_testing.length > 0
+      ? forward_testing.reduce((a, r) => a + r.avg_backtested_win_rate, 0) / forward_testing.length
+      : 0
+  const degrading = forward_testing.filter((r) => r.win_percentage < r.avg_backtested_win_rate - 10).length
+
+  const dateMatch = overlay.source_file?.match(/(\d{4}-\d{2}-\d{2})/)
+
+  return {
+    meta: metaFromSource(overlay.source_file),
+    report_date: dateMatch?.[1],
+    forward_testing,
+    latest_performance,
+    aggregates: {
+      avg_forward_wr: Math.round(avgFwd * 10) / 10,
+      avg_backtest_wr: Math.round(avgBt * 10) / 10,
+      total_trades: forward_testing.reduce((a, r) => a + r.total_trades, 0),
+      degrading_count: degrading,
+    },
   }
 }
 

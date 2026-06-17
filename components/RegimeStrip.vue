@@ -8,7 +8,10 @@
       <div class="rssep" />
       <div class="rsi" v-html="item" />
     </template>
-    <div v-if="right" class="rsr" v-html="right" />
+    <div v-if="right || $slots.trailing" class="rs-tail">
+      <div v-if="right" class="rsr" v-html="right" />
+      <slot name="trailing" />
+    </div>
   </div>
 </template>
 
