@@ -19,8 +19,23 @@
       :multi-active-ids="cfg.multiActiveIds"
       @select="onNavSelect"
     />
+    <details v-if="showPortfolioFlags" class="m-widget-flags">
+      <summary class="m-widget-flags-summary">Flag guide</summary>
+      <PortfolioFlagLegend />
+    </details>
     <div class="m-content">
       <slot />
+    </div>
+    <div v-if="cfg.agentItems.length" class="m-agent" aria-label="Agent status">
+      <div
+        v-for="(item, i) in cfg.agentItems"
+        :key="i"
+        class="m-agent-item"
+        :class="{ 'm-agent-item-right': item.right }"
+      >
+        <span class="m-agent-dot" :class="item.dot" />
+        <span class="m-agent-label">{{ item.label }}</span>
+      </div>
     </div>
     <MobileBottomNav :active-tab="cfg.activeTab" />
     <FunctionDetailPopup />
@@ -37,8 +52,12 @@ const props = defineProps<{
   showSignalsInterval?: boolean
 }>()
 
+const route = useRoute()
+
 const pageTitle = computed(() => {
   const tab = MAIN_TABS.find((t) => t.id === props.cfg.activeTab)
   return tab?.label.split('·')[0]?.trim() ?? 'Terminal'
 })
+
+const showPortfolioFlags = computed(() => route.path === '/portfolio')
 </script>

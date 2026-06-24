@@ -120,8 +120,88 @@ function extractInterval(rec: Record<string, unknown>): string {
   return m ? m[1] : ''
 }
 
+export function normFunctionKey(name: string): string {
+  return name.toUpperCase().replace(/\s+/g, '')
+}
+
+export function signalRecordInterval(rec: Record<string, unknown>): string {
+  const direct = String(rec.Interval ?? rec.interval ?? '').trim()
+  if (direct) return direct.split(',')[0].trim()
+  return extractInterval(rec)
+}
+
+/** Mean backtested 10yr CAGR across unique function/interval combos in Gate A2b. */
+export function avgCagrFromGateA2b(
+  gates: Array<{ function: string; interval: string; bt_cagr?: number }>,
+  records: Record<string, unknown>[],
+): number | undefined {
+  const cagrByCombo = new Map<string, number>()
+  for (const rec of records) {
+    const fn = normFunctionKey(String(rec.Function ?? rec.function ?? ''))
+    const interval = signalRecordInterval(rec)
+    if (!fn || !interval) continue
+    const key = `${fn}|${interval}`
+    if (!cagrByCombo.has(key)) {
+      const cagr = parsePercentValue(rec['Backtested Strategy CAGR [%]'])
+      if (Number.isFinite(cagr) && cagr !== 0) cagrByCombo.set(key, cagr)
+    }
+  }
+
+  const seen = new Set<string>()
+  const cagrs: number[] = []
+  for (const gate of gates) {
+    const key = `${normFunctionKey(gate.function)}|${gate.interval.trim()}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    const cagr = gate.bt_cagr ?? cagrByCombo.get(key)
+    if (cagr != null && Number.isFinite(cagr) && cagr !== 0) cagrs.push(cagr)
+  }
+
+  if (!cagrs.length) return undefined
+  return Math.round((cagrs.reduce((a, n) => a + n, 0) / cagrs.length) * 10) / 10
+}
+
 export function recordsToSignals(records: Record<string, unknown>[]): Signal[] {
   return records.map(recordToSignal).filter((s) => s.symbol && s.function)
+}
+
+/** Normalize Claude shortlist / machine-line rows (CSV column names) for matching and parsing. */
+export function normalizeShortlistRecord(row: Record<string, unknown>): Record<string, unknown> {
+  const fn = String(row.function ?? row.Function ?? '').trim()
+  let interval = String(row.interval ?? row.Interval ?? '').trim()
+  if (!interval) {
+    const conf = String(row[INTERVAL_COL] ?? '')
+    const m = conf.match(/^(Daily|Weekly|Monthly|Quarterly|Yearly)/i)
+    if (m) interval = m[1]
+  }
+
+  let symbol = String(row.symbol ?? '').trim()
+  let direction = String(row.direction ?? row.signal_type ?? '').trim()
+  const symRaw = String(row[SYM_COL] ?? '')
+  if (symRaw) {
+    const parsed = parseSymbolField(symRaw)
+    if (!symbol) symbol = parsed.symbol
+    if (!direction) direction = parsed.signalType
+  }
+
+  return {
+    ...row,
+    Function: row.Function ?? fn,
+    function: fn,
+    interval,
+    symbol,
+    direction,
+    signal_type: direction || row.signal_type,
+    // Shortlist rows are Claude Tier A qualified bundles from the synthesis report.
+    tier: 'tA',
+  }
+}
+
+export function shortlistRowsToSignals(rows: Record<string, unknown>[]): Signal[] {
+  if (!rows.length) return []
+  const hasReportShape = rows.some((r) => r.Function != null || r.function != null)
+  if (!hasReportShape) return []
+  return recordsToSignals(rows.map(normalizeShortlistRecord))
 }
 
 export function buildSignalsSummary(signals: Signal[], shortlisted = 0): SignalsSummary {

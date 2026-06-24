@@ -7,7 +7,7 @@
     @retry="refresh"
   >
     <div v-if="data" class="main">
-      <div class="kr k4">
+      <div class="kr k3">
         <KpiCard
           label="BACKTEST WR"
           :value="apiPercent(data, data.kpis?.backtest_wr ?? null)"
@@ -18,16 +18,9 @@
         <KpiCard
           label="FORWARD TEST WR"
           :value="apiPercent(data, data.kpis?.forward_wr ?? null)"
-          delta="last 6m · above 60% threshold"
+          delta="forward testing · above 60% threshold"
           accent="b"
           delta-class="b"
-        />
-        <KpiCard
-          label="FORCED PORTFOLIO"
-          :value="forcedPortfolioLabel"
-          delta="YTD · live"
-          accent="gold"
-          delta-class="gold"
         />
         <KpiCard
           label="DEGRADATION ALERTS"
@@ -62,11 +55,6 @@
             </div>
             <div v-if="fn.note" class="health-note">{{ fn.note }}</div>
           </div>
-          <div class="live-card">
-            <div class="live-label">LIVE PORTFOLIO · FORCED MODEL (AHIL)</div>
-            <div class="live-row"><span>YTD Return</span><span class="green">{{ forcedPortfolioLabel }}</span></div>
-            <div class="live-row"><span>Active alerts</span><span class="gold">{{ data.count }}</span></div>
-          </div>
         </div>
         <div class="ow-col scroll-col">
           <div class="section-label teal">LAYER 2 · SYSTEM HEALTH</div>
@@ -87,21 +75,12 @@
 
 <script setup lang="ts">
 import type { OverwatchResponse } from '~/types/api'
-import { apiPercent, isApiUnavailable } from '~/utils/api-display'
+import { apiPercent } from '~/utils/api-display'
 
 definePageMeta({ layout: 'terminal' })
 
 const { fetchOverwatch } = useApi()
 const { data, pending, error, refresh } = fetchOverwatch()
-
-const forcedPortfolioLabel = computed(() => {
-  if (!data.value || isApiUnavailable(data.value)) {
-    return apiPercent(data.value, null)
-  }
-  const ytd = data.value.kpis?.forced_portfolio_ytd
-  if (ytd == null) return '—'
-  return `+${ytd}%`
-})
 
 function logDotClass(log: NonNullable<OverwatchResponse['system_logs']>[number]) {
   if (log.type === 'delay') return 'gold-pulse'
@@ -189,26 +168,6 @@ function logDotClass(log: NonNullable<OverwatchResponse['system_logs']>[number])
   margin-top: 7px;
   border-top: 1px solid var(--b1);
   padding-top: 6px;
-}
-.live-card {
-  background: var(--s2);
-  border: 1px solid var(--b2);
-  border-radius: 5px;
-  padding: 9px 11px;
-}
-.live-label {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
-  color: var(--t3);
-  margin-bottom: 6px;
-}
-.live-row {
-  display: flex;
-  justify-content: space-between;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  color: var(--t2);
-  margin-top: 4px;
 }
 .log-row {
   display: flex;

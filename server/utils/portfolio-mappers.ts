@@ -516,6 +516,100 @@ function mapSizerCluster(raw: Record<string, unknown>): PortfolioClusterGroup {
   }
 }
 
+function sumActiveAllocations(positions: PortfolioAllocationRow[]): number {
+  return positions
+    .filter((p) => !p.blocked)
+    .reduce((sum, p) => sum + (p.allocation_usd ?? 0), 0)
+}
+
+function scalePositionAllocations(
+  positions: PortfolioAllocationRow[],
+  scale: number,
+  notional: number | null,
+): PortfolioAllocationRow[] {
+  if (scale === 1) return positions
+  return positions.map((p) => {
+    if (p.blocked || p.allocation_usd == null) return p
+    const allocation_usd = Math.round(p.allocation_usd * scale)
+    const allocation_pct =
+      p.allocation_pct != null
+        ? Math.round(p.allocation_pct * scale * 100) / 100
+        : notional && notional > 0
+          ? Math.round((allocation_usd / notional) * 10000) / 100
+          : null
+    return { ...p, allocation_usd, allocation_pct }
+  })
+}
+
+function clusterDeployedPct(deployed_usd: number, notional: number | null): number | null {
+  if (!notional || notional <= 0) return null
+  return Math.round((deployed_usd / notional) * 1000) / 10
+}
+
+/** Sizer API can return per-position allocations that sum far above cluster budget; cap and align to summary. */
+function normalizeSizerCluster(
+  cluster: PortfolioClusterGroup,
+  notional: number | null,
+): PortfolioClusterGroup {
+  const budget = cluster.budget_usd
+  const rawDeployed = sumActiveAllocations(cluster.positions)
+  const apiDeployed = cluster.deployed_usd ?? rawDeployed
+
+  const overBudget = budget != null && budget > 0 && (apiDeployed > budget || rawDeployed > budget)
+  const overMaxPct =
+    cluster.max_pct != null &&
+    cluster.deployed_pct != null &&
+    cluster.deployed_pct > cluster.max_pct
+
+  if (!overBudget && !overMaxPct) return cluster
+
+  const cap = budget != null && budget > 0 ? budget : rawDeployed
+  const scale = rawDeployed > 0 && cap < rawDeployed ? cap / rawDeployed : 1
+  const positions = scalePositionAllocations(cluster.positions, scale, notional)
+  const deployed_usd = sumActiveAllocations(positions)
+
+  return {
+    ...cluster,
+    positions,
+    deployed_usd,
+    deployed_pct: clusterDeployedPct(deployed_usd, notional) ?? cluster.deployed_pct,
+  }
+}
+
+function scaleClustersToPortfolioSummary(
+  clusters: PortfolioClusterGroup[],
+  summary: PortfolioSummary,
+  notional: number | null,
+): PortfolioClusterGroup[] {
+  const target = summary.deployed_usd
+  if (target == null || target <= 0) return clusters
+
+  const sum = clusters.reduce((s, c) => s + (c.deployed_usd ?? 0), 0)
+  if (sum <= target + 1) return clusters
+
+  const scale = target / sum
+  return clusters.map((cluster) => {
+    const positions = scalePositionAllocations(cluster.positions, scale, notional)
+    const deployed_usd = sumActiveAllocations(positions)
+    return {
+      ...cluster,
+      positions,
+      deployed_usd,
+      deployed_pct: clusterDeployedPct(deployed_usd, notional) ?? cluster.deployed_pct,
+    }
+  })
+}
+
+function normalizeSizerClusters(
+  clusters: PortfolioClusterGroup[],
+  ceiling: PortfolioCeiling,
+  summary: PortfolioSummary,
+): PortfolioClusterGroup[] {
+  const notional = ceiling.portfolio_notional
+  const capped = clusters.map((c) => normalizeSizerCluster(c, notional))
+  return scaleClustersToPortfolioSummary(capped, summary, notional)
+}
+
 function mapSizerCeiling(raw: Record<string, unknown> | undefined): PortfolioCeiling {
   const c = raw ?? {}
   const steps = Array.isArray(c.steps)
@@ -566,9 +660,28 @@ export function mapPortfolioSizerResponse(
   meta?: PortfolioResponse['meta'],
 ): PortfolioResponse {
   const ceiling = mapSizerCeiling(raw.ceiling as Record<string, unknown>)
-  const clusters = Array.isArray(raw.clusters)
+  const clustersRaw = Array.isArray(raw.clusters)
     ? raw.clusters.map((c) => mapSizerCluster(c as Record<string, unknown>))
     : []
+
+  const summaryRaw = (raw.summary as Record<string, unknown>) ?? {}
+  const summary: PortfolioSummary = {
+    deployed_usd: numOrNull(summaryRaw.deployed_usd),
+    deployed_pct: numOrNull(summaryRaw.deployed_pct),
+    cash_usd: numOrNull(summaryRaw.cash_usd),
+    cash_pct: numOrNull(summaryRaw.cash_pct),
+    idle_income_usd: numOrNull(summaryRaw.idle_income_usd),
+    open_position_count: Number(summaryRaw.open_position_count ?? 0),
+  }
+
+  const clusters = normalizeSizerClusters(clustersRaw, ceiling, {
+    ...summary,
+    open_position_count: summary.open_position_count || clustersRaw.reduce(
+      (n, c) => n + c.positions.filter((p) => !p.blocked).length,
+      0,
+    ),
+  })
+
   const pnl_rows = Array.isArray(raw.pnl_rows)
     ? raw.pnl_rows.map((r) => mapSizerPnlRow(r as Record<string, unknown>))
     : clusters.flatMap((c) =>
@@ -594,14 +707,8 @@ export function mapPortfolioSizerResponse(
         })),
       )
 
-  const summaryRaw = (raw.summary as Record<string, unknown>) ?? {}
-  const summary: PortfolioSummary = {
-    deployed_usd: numOrNull(summaryRaw.deployed_usd),
-    deployed_pct: numOrNull(summaryRaw.deployed_pct),
-    cash_usd: numOrNull(summaryRaw.cash_usd),
-    cash_pct: numOrNull(summaryRaw.cash_pct),
-    idle_income_usd: numOrNull(summaryRaw.idle_income_usd),
-    open_position_count: Number(summaryRaw.open_position_count ?? pnl_rows.length),
+  if (summary.open_position_count === 0) {
+    summary.open_position_count = pnl_rows.length
   }
 
   const constraints = Array.isArray(raw.constraints)

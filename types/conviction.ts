@@ -21,6 +21,7 @@ export interface BqDimension {
 export interface FdVote {
   label: string
   direction: 'positive' | 'negative' | 'stable'
+  rationale?: string
 }
 
 export interface ConvictionSignalDetail {

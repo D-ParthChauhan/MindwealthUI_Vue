@@ -123,13 +123,9 @@
     </div>
 
     <div>
-      <div v-if="brief?.narrative" class="runic-card" style="margin-bottom:8px">
+      <div v-if="brief?.narrative" class="runic-card">
         <div class="runic-card-hd"><div class="runic-card-title">Nightly Narrative</div></div>
         <div class="runic-body narrative-block" style="padding:10px 14px">{{ brief.narrative }}</div>
-      </div>
-      <div class="runic-card">
-        <div class="runic-card-hd"><div class="runic-card-title">Nightly JSON</div></div>
-        <pre class="brief-json">{{ nightlyJson }}</pre>
       </div>
     </div>
   </div>
@@ -222,23 +218,6 @@ const wtiClass = computed(() => {
   if (pct <= -15) return 'neg'
   if (pct >= 10) return 'warn'
   return ''
-})
-
-const nightlyJson = computed(() => {
-  const payload = {
-    macro_status: macroStatus.value,
-    narrative: narrative.value,
-    regime: regime.value,
-    combos: combos.value,
-    persistence: persistence.value,
-    cancel_tracker: cancelTracker.value,
-    ssi_summary: ssiSummary.value,
-  }
-  try {
-    return JSON.stringify(payload, null, 2)
-  } catch {
-    return '—'
-  }
 })
 
 function activeComboDetail(combo: MacroNamedCombo) {
@@ -341,19 +320,5 @@ function activeComboDetail(combo: MacroNamedCombo) {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
   color: var(--t2);
-}
-.brief-json {
-  margin: 0;
-  padding: 10px 14px;
-  max-height: 480px;
-  overflow: auto;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
-  line-height: 1.55;
-  color: var(--t2);
-  background: var(--s2);
-  border-top: 1px solid var(--b2);
-  white-space: pre-wrap;
-  word-break: break-word;
 }
 </style>

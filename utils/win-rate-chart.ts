@@ -32,7 +32,7 @@ export function getChartXLabels(chart: WinRateChartData): string[] {
   if (chart.properties.x_axis === 'Interval') {
     return [...xValues].sort((a, b) => intervalSortIndex(a) - intervalSortIndex(b))
   }
-  return xValues
+  return [...xValues].sort((a, b) => a.localeCompare(b))
 }
 
 function isLong(signalType: string): boolean {

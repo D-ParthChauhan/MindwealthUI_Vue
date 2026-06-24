@@ -3,7 +3,7 @@
     <div class="macro-sticky-hd">
       <div class="macro-tab-bar">
         <button
-          v-for="tab in RUNIC_MACRO_TABS"
+          v-for="tab in macroTabs"
           :key="tab.id"
           type="button"
           class="macro-tab-btn"
@@ -43,6 +43,14 @@ definePageMeta({ layout: 'terminal' })
 
 import { RUNIC_MACRO_TABS } from '~/constants/runic-macro-data'
 
-useRunicMacro()
+const { showAnalogTab } = useRunicMacro()
 const { activeTab, switchTab } = useRunicMacroPage()
+
+const macroTabs = computed(() =>
+  showAnalogTab.value ? RUNIC_MACRO_TABS : RUNIC_MACRO_TABS.filter((tab) => tab.id !== 'analog'),
+)
+
+watch(showAnalogTab, (visible) => {
+  if (!visible && activeTab.value === 'analog') switchTab('overview')
+}, { immediate: true })
 </script>

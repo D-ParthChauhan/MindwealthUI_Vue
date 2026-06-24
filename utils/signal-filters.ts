@@ -100,24 +100,37 @@ export function signalListKey(signal: Signal): string {
   return `${signal.symbol}|${normalizeFunctionName(signal.function)}|${normalizeIntervalName(signal.interval)}`
 }
 
-export function shortlistRowKey(row: {
-  symbol?: string | number | null
-  function?: string | number | null
-  interval?: string | number | null
-}): string {
-  return `${String(row.symbol ?? '')}|${normalizeFunctionName(String(row.function ?? ''))}|${normalizeIntervalName(String(row.interval ?? ''))}`
+function shortlistRowFunction(row: Record<string, unknown>): string {
+  return String(row.function ?? row.Function ?? '').trim()
 }
 
-export function matchesShortlistRow(
-  signal: Signal,
-  rows: Array<{ symbol?: string | number | null; function?: string | number | null; interval?: string | number | null }>,
-): boolean {
+function shortlistRowInterval(row: Record<string, unknown>): string {
+  const direct = String(row.interval ?? row.Interval ?? '').trim()
+  if (direct) return direct.split(',')[0].trim()
+  const conf = String(row['Interval, Confirmation Status'] ?? '')
+  const m = conf.match(/^(Daily|Weekly|Monthly|Quarterly|Yearly)/i)
+  return m ? m[1] : ''
+}
+
+function shortlistRowSymbol(row: Record<string, unknown>): string {
+  const direct = String(row.symbol ?? '').trim()
+  if (direct) return direct
+  const symRaw = String(row['Symbol, Signal, Signal Date/Price[$]'] ?? '')
+  if (!symRaw) return ''
+  return symRaw.split(',')[0]?.trim() ?? ''
+}
+
+export function shortlistRowKey(row: Record<string, unknown>): string {
+  return `${shortlistRowSymbol(row)}|${normalizeFunctionName(shortlistRowFunction(row))}|${normalizeIntervalName(shortlistRowInterval(row))}`
+}
+
+export function matchesShortlistRow(signal: Signal, rows: Array<Record<string, unknown>>): boolean {
   if (!rows.length) return false
-  const hasRichRows = rows.some((r) => r.function != null && r.interval != null)
+  const hasRichRows = rows.some((r) => shortlistRowFunction(r) && shortlistRowInterval(r))
   if (hasRichRows) {
     const keys = new Set(rows.map(shortlistRowKey))
     return keys.has(signalListKey(signal))
   }
-  const symbols = new Set(rows.map((r) => String(r.symbol ?? '')))
+  const symbols = new Set(rows.map(shortlistRowSymbol).filter(Boolean))
   return symbols.has(signal.symbol)
 }

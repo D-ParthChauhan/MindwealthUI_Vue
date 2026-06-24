@@ -45,9 +45,9 @@
         />
         <KpiCard
           v-if="viewMode !== 'all-signal'"
-          label="SHORTLISTED"
-          :value="String(listData.summary.shortlisted ?? 0)"
-          delta="cross-confirmed"
+          label="CLAUDE SHORTLISTED"
+          :value="String(shortlistCount)"
+          :delta="shortlistDateLabel"
           accent="b"
           delta-class="b"
         />
@@ -140,10 +140,6 @@
               @prev="selectPrev"
               @next="selectNext"
             />
-          </div>
-          <div v-if="hasDegraded" class="signals-note">
-            <span class="fwd-deg-slot inline" aria-hidden="true"><span class="fwd-deg-line" /></span>
-            Gold line: FWD win rate trails backtest by more than 10pp (may still be above the 60% floor).
           </div>
         </template>
 
@@ -557,6 +553,15 @@ const surfaceReport = computed(() => {
 
 const surfaceApi = fetchSignalSurface(surfaceReport)
 
+/** Surface enrichment: shortlist uses Claude report rows; otherwise /signals/surface */
+const surfaceRecords = computed(() => {
+  if (navActiveId.value === 'shortlist') {
+    const rows = shortlist.data.value?.rows
+    if (rows?.length) return rows as import('~/types/api').SignalSurfaceRecord[]
+  }
+  return surfaceApi.data.value?.records ?? null
+})
+
 const isSignalListView = computed(() =>
   viewMode.value === 'signals' || viewMode.value === 'all-signal',
 )
@@ -575,18 +580,12 @@ const listData = computed(() => {
     if (!sl) return null
     const rows = sl.rows ?? []
     const sigs =
-      outstanding.data.value?.signals.filter((s) => matchesShortlistRow(s, rows)) ?? []
+      sl.signals?.length
+        ? sl.signals
+        : outstanding.data.value?.signals.filter((s) => matchesShortlistRow(s, rows)) ?? []
     return {
       meta: sl.meta,
-      summary: outstanding.data.value?.summary ?? {
-        long: 0,
-        short: 0,
-        long_pct: 0,
-        short_note: '',
-        new_long: 0,
-        new_short: 0,
-        shortlisted: sl.count,
-      },
+      summary: buildSignalsSummary(sigs, sl.count),
       signals: sigs,
     }
   }
@@ -635,6 +634,13 @@ const horizontalUniqueTickers = computed(() =>
   new Set((horizontalData.value?.rows ?? []).map((r) => r.symbol)).size,
 )
 
+const shortlistCount = computed(() => shortlist.data.value?.count ?? 0)
+
+const shortlistDateLabel = computed(() => {
+  const date = shortlist.data.value?.meta?.data_updated_at?.date
+  return date ? `as of ${date}` : 'live'
+})
+
 const reportDateLabel = computed(() => {
   const meta =
     listData.value?.meta ??
@@ -660,7 +666,7 @@ const pending = computed(() => {
     return strategyHealth.pending.value || combinedPerformance.pending.value
   }
   if (navActiveId.value === 'shortlist') {
-    return outstanding.pending.value || shortlist.pending.value || surfaceApi.pending.value
+    return shortlist.pending.value
   }
   if (nav === 'signals') {
     return activeSource.value.pending.value || surfaceApi.pending.value
@@ -677,7 +683,7 @@ const error = computed(() => {
     return strategyHealth.error.value || combinedPerformance.error.value
   }
   if (navActiveId.value === 'shortlist') {
-    return outstanding.error.value || shortlist.error.value || surfaceApi.error.value
+    return shortlist.error.value
   }
   if (nav === 'signals') {
     return activeSource.value.error.value || surfaceApi.error.value
@@ -733,13 +739,13 @@ const contentTitle = computed(() => {
 const displaySignals = computed(() => {
   const withSurface = mergeSignalsWithSurfaceRecords(
     filteredSignals.value,
-    surfaceApi.data.value?.records,
+    surfaceRecords.value,
   )
   return mergeSignalsWithDegradationCheck(withSurface, checkDegradation.data.value)
 })
 
 const surfacePoints = computed(() =>
-  buildSurfacePoints(displaySignals.value, surfaceApi.data.value?.records),
+  buildSurfacePoints(displaySignals.value, surfaceRecords.value),
 )
 
 const surfaceEnrichmentNote = computed(() => {
@@ -753,7 +759,7 @@ const surfaceEnrichmentNote = computed(() => {
 
 const surfaceMissingFields = computed(() => {
   if (surfaceEnrichmentNote.value) return []
-  if (surfaceApi.data.value?.records?.length) {
+  if (surfaceRecords.value?.length) {
     const found = collectMissingSurfaceFields(surfacePoints.value)
     return SURFACE_REQUIRED_FIELDS.filter((f) => found.includes(f))
   }
@@ -766,8 +772,6 @@ const rankedMissingFields = computed(() => {
 })
 
 const tableRows = computed(() => displaySignals.value.map(mapSignalRow))
-const hasDegraded = computed(() => tableRows.value.some((r) => r.fwdDegraded))
-
 const selectedSurfaceKey = computed(() => {
   const sig = selectedSignal.value
   return sig ? signalKey(sig) : null
@@ -936,11 +940,6 @@ function gateClass(gate: string) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-}
-.fwd-deg-slot.inline {
-  display: inline-flex;
-  vertical-align: middle;
-  margin-right: 5px;
 }
 .fwd-deg-line {
   display: block;

@@ -31,6 +31,7 @@ import type {
   SignalSurfaceResponse,
   SignalsListResponse,
   StrategyHealthResponse,
+  GateA2bResponse,
 } from '~/types/api'
 import type { ConvictionResponse } from '~/types/conviction'
 
@@ -117,11 +118,6 @@ export function getUnavailableOverwatch(): OverwatchResponse {
     alerts: [],
     count: 0,
     message: UNAVAILABLE_FETCH,
-    kpis: {
-      backtest_wr: 0,
-      forward_wr: 0,
-      forced_portfolio_ytd: 0,
-    },
     function_health: [],
     system_logs: [],
   }
@@ -408,6 +404,10 @@ export function getUnavailableSignalSummary(report = 'outstanding-signals'): Sig
 
 export function getUnavailableStrategyHealth(): StrategyHealthResponse {
   return { strategy_health: [] }
+}
+
+export function getUnavailableGateA2b(): GateA2bResponse {
+  return { gates: [] }
 }
 
 export function getUnavailableCheckDegradation(): CheckDegradationResponse {

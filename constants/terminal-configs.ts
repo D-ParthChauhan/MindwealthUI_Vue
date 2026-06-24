@@ -246,7 +246,6 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId' | 'regime' 
         label: 'Layer 1 · Performance',
         items: [
           { id: 'health', label: 'Function Health', sub: 'BT vs FWD', dot: 'b' },
-          { id: 'forced', label: 'Forced Portfolio', dot: 'g' },
           { id: 'alerts', label: 'Degradation Alerts', dot: 'r' },
         ],
       },
@@ -331,9 +330,6 @@ export function useTerminalLayout() {
         items: g.items.map((item) => {
           if (item.id === 'alerts' && ow.count > 0) {
             return { ...item, sub: `${ow.count} active`, pulse: true }
-          }
-          if (item.id === 'forced' && ow.kpis?.forced_portfolio_ytd != null) {
-            return { ...item, sub: `+${ow.kpis.forced_portfolio_ytd}% YTD` }
           }
           return item
         }),

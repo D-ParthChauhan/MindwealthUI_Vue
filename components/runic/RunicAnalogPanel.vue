@@ -50,13 +50,14 @@
 import type { RunicAnalogResponse } from '~/types/api'
 import { UNAVAILABLE_FETCH } from '~/constants/unavailable'
 import { NAMED_COMBO_LETTERS } from '~/constants/runic-macro-data'
+import { panelHasResolvedReturns } from '~/utils/runic-analog'
 
 const { analogPanels, analogPending } = useRunicMacro()
 
 const panels = computed((): RunicAnalogResponse[] =>
   NAMED_COMBO_LETTERS
     .map((letter) => analogPanels.value?.[letter])
-    .filter((p): p is RunicAnalogResponse => Boolean(p?.rows?.length)),
+    .filter((p): p is RunicAnalogResponse => Boolean(p?.rows?.length && panelHasResolvedReturns(p))),
 )
 
 const showLoading = computed(() => analogPending.value && !panels.value.length)

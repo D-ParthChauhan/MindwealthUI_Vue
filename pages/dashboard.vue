@@ -122,7 +122,13 @@ const topSignals = computed(() =>
   overflow: hidden;
 }
 .dash-chart { display: flex; flex-direction: column; min-width: 0; }
-.chart-wrap { flex: 1; min-height: 392px; min-width: 0; }
+.m-chart-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+  min-width: 0;
+  -webkit-overflow-scrolling: touch;
+}
+.chart-wrap { flex: 1; min-height: 392px; min-width: min-content; width: max-content; max-width: none; }
 .dash-side { display: flex; flex-direction: column; gap: 11px; }
 .ai-card { background: rgba(201, 168, 76, 0.03); border-color: rgba(201, 168, 76, 0.18); }
 .ai-card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; }

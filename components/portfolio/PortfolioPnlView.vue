@@ -7,6 +7,7 @@
       <div class="pf-live-badge">● LIVE</div>
     </div>
     <div class="pf-pnl-inner">
+      <div class="m-tbl-scroll">
       <table class="pf-tbl">
         <thead>
           <tr>
@@ -63,6 +64,7 @@
           </tr>
         </tbody>
       </table>
+      </div>
       <div v-if="!data.pnl_rows.length" class="pf-empty-msg">No open positions in virtual trading book.</div>
     </div>
   </div>

@@ -1,5 +1,4 @@
 import type {
-  BreadthRow,
   CombinedPerformanceReportRow,
   FunctionSidebarItem,
   PerformanceRow,
@@ -19,9 +18,6 @@ export function useFunctionPopup() {
   const { data: combinedPerf, pending: combinedPending } = useFetch<
     import('~/types/api').CombinedPerformanceReportResponse
   >('/api/signals/combined-performance', { key: 'api-signals-combined-performance' })
-  const { data: breadth } = useFetch<import('~/types/api').BreadthResponse>('/api/breadth', {
-    key: 'api-breadth',
-  })
 
   const sidebarItem = computed((): FunctionSidebarItem | null => {
     const label = selectedLabel.value
@@ -36,12 +32,6 @@ export function useFunctionPopup() {
     return (performance.value?.rows ?? []).filter((row) =>
       matchesFunctionName(label, row.function),
     )
-  })
-
-  const breadthRow = computed((): BreadthRow | null => {
-    const label = selectedLabel.value
-    if (!label) return null
-    return findByFunctionName(breadth.value?.rows ?? [], label, 'function') ?? null
   })
 
   const combinedRows = computed((): CombinedPerformanceReportRow[] => {
@@ -89,7 +79,6 @@ export function useFunctionPopup() {
     displayName,
     sidebarItem,
     displayRows,
-    breadthRow,
     dataPending,
     dashboard,
     combinedPerf,

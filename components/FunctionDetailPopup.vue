@@ -21,17 +21,6 @@
             </div>
           </div>
 
-          <div v-if="breadthRow" class="fn-pop-breadth">
-            <div class="fn-pop-stat">
-              <span class="fn-pop-stat-l">Bullish signals</span>
-              <span class="fn-pop-stat-v">{{ formatPercent(breadthRow.bullish_signal_percentage) }}</span>
-            </div>
-            <div class="fn-pop-stat">
-              <span class="fn-pop-stat-l">Bullish assets</span>
-              <span class="fn-pop-stat-v">{{ formatPercent(breadthRow.bullish_asset_percentage) }}</span>
-            </div>
-          </div>
-
           <div v-if="dataPending" class="fn-pop-empty">Loading performance…</div>
           <div v-else-if="displayRows.length === 0" class="fn-pop-empty">
             No performance rows returned for this function.
@@ -75,13 +64,22 @@ const {
   displayName,
   sidebarItem,
   displayRows,
-  breadthRow,
   dataPending,
   dashboard,
   close,
 } = useFunctionPopup()
 
-const HIDDEN_KEYS = new Set(['function', 'strategy'])
+const HIDDEN_KEYS = new Set([
+  'function',
+  'strategy',
+  'best_profit',
+  'worst_profit',
+  'avg_profit',
+  'max_holding_days',
+  'min_holding_days',
+  'avg_holding_days',
+  'avg_backtested_holding_days',
+])
 
 const columns = computed(() => {
   const row = displayRows.value[0]
@@ -95,10 +93,6 @@ function humanizeKey(key: string): string {
   return key
     .replace(/_/g, ' ')
     .replace(/\b\w/g, (c) => c.toUpperCase())
-}
-
-function formatPercent(value: number): string {
-  return apiPercent(dashboard.value, value, 'fetch')
 }
 
 function formatCell(key: string, value: unknown): string {
@@ -220,35 +214,6 @@ function cellClass(key: string, row: Record<string, unknown>): string | undefine
 .fn-pop-close:hover {
   color: var(--t2);
   background: var(--s1);
-}
-.fn-pop-breadth {
-  display: flex;
-  gap: 10px;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--b1);
-  flex-shrink: 0;
-}
-.fn-pop-stat {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  background: var(--s2);
-  border: 1px solid var(--b1);
-  border-radius: 4px;
-}
-.fn-pop-stat-l {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8.5px;
-  color: var(--t3);
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-.fn-pop-stat-v {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  color: var(--t1);
 }
 .fn-pop-table-wrap {
   overflow: auto;

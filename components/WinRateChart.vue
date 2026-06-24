@@ -2,13 +2,15 @@
   <div
     v-if="hasData"
     class="wr-chart"
+    :style="{ minWidth: `${layout.W}px` }"
     :aria-label="ariaLabel"
     role="img"
   >
     <svg
       class="wr-svg"
-      :viewBox="`0 0 ${W} ${H}`"
+      :viewBox="`0 0 ${layout.W} ${layout.H}`"
       preserveAspectRatio="xMinYMid meet"
+      :style="{ minWidth: `${layout.W}px` }"
     >
       <defs>
         <linearGradient :id="gradientId" x1="0" y1="0" x2="0" y2="1">
@@ -20,9 +22,9 @@
       <!-- Y-axis title -->
       <text
         :x="18"
-        :y="plot.top + plot.height / 2"
+        :y="layout.plot.top + layout.plot.height / 2"
         class="wr-axis-title"
-        :transform="`rotate(-90, 18, ${plot.top + plot.height / 2})`"
+        :transform="`rotate(-90, 18, ${layout.plot.top + layout.plot.height / 2})`"
         text-anchor="middle"
       >
         {{ yAxisLabel }}
@@ -31,23 +33,23 @@
       <!-- Grid + Y ticks -->
       <g v-for="tick in yTicks" :key="tick.value">
         <line
-          :x1="plot.left"
+          :x1="layout.plot.left"
           :y1="tick.y"
-          :x2="plot.left + plot.width"
+          :x2="layout.plot.left + layout.plot.width"
           :y2="tick.y"
           class="wr-grid"
         />
-        <text :x="plot.left - 8" :y="tick.y + 4" class="wr-tick-y" text-anchor="end">
+        <text :x="layout.plot.left - 8" :y="tick.y + 4" class="wr-tick-y" text-anchor="end">
           {{ tick.label }}
         </text>
       </g>
 
       <!-- Plot border -->
       <rect
-        :x="plot.left"
-        :y="plot.top"
-        :width="plot.width"
-        :height="plot.height"
+        :x="layout.plot.left"
+        :y="layout.plot.top"
+        :width="layout.plot.width"
+        :height="layout.plot.height"
         fill="none"
         stroke="rgba(255,255,255,0.08)"
         stroke-width="1"
@@ -87,18 +89,20 @@
       <g v-for="(lbl, i) in xLabels" :key="lbl">
         <text
           :x="xPos(i)"
-          :y="xTickY"
+          :y="layout.xTickY"
           class="wr-tick-x"
-          text-anchor="middle"
+          :class="{ 'wr-tick-x-rotated': layout.rotateXLabels }"
+          :text-anchor="layout.rotateXLabels ? 'end' : 'middle'"
+          :transform="layout.rotateXLabels ? `rotate(-42, ${xPos(i)}, ${layout.xTickY})` : undefined"
         >
-          {{ lbl }}
+          {{ formatXLabel(lbl) }}
         </text>
       </g>
 
       <!-- X-axis title -->
       <text
-        :x="plot.left + plot.width / 2"
-        :y="xTitleY"
+        :x="layout.plot.left + layout.plot.width / 2"
+        :y="layout.xTitleY"
         class="wr-axis-sub"
         text-anchor="middle"
       >
@@ -139,16 +143,38 @@ const props = defineProps<{
   chart?: DashboardResponse['win_rate_chart']
 }>()
 
-const W = 640
-const H = 340
-const plot = { left: 52, top: 40, width: 572, height: 232 }
-const xTickY = plot.top + plot.height + 22
-const xTitleY = plot.top + plot.height + 42
+const PLOT_LEFT = 52
+const PLOT_TOP = 40
+const PLOT_HEIGHT = 232
+const BASE_PLOT_WIDTH = 572
+const BASE_CHART_HEIGHT = 340
 
 const gradientId = 'wr-gg-dashboard'
 
 const series = computed(() => props.chart?.series ?? [])
 const hasData = computed(() => series.value.some((s) => s.points.length > 0))
+
+const xLabels = computed(() =>
+  props.chart ? getChartXLabels(props.chart) : [],
+)
+
+const isFunctionAxis = computed(
+  () => (props.chart?.properties.x_axis ?? '').toLowerCase() === 'function',
+)
+
+const layout = computed(() => {
+  const n = xLabels.value.length
+  const rotateXLabels = isFunctionAxis.value && n > 4
+  const slotWidth = rotateXLabels ? 72 : 56
+  const plotWidth =
+    n <= 1 ? BASE_PLOT_WIDTH : Math.max(BASE_PLOT_WIDTH, (n - 1) * slotWidth)
+  const plot = { left: PLOT_LEFT, top: PLOT_TOP, width: plotWidth, height: PLOT_HEIGHT }
+  const W = plot.left + plot.width + 16
+  const xTickY = plot.top + plot.height + (rotateXLabels ? 10 : 22)
+  const xTitleY = plot.top + plot.height + (rotateXLabels ? 78 : 42)
+  const H = Math.max(BASE_CHART_HEIGHT, xTitleY + 12)
+  return { W, H, plot, xTickY, xTitleY, rotateXLabels }
+})
 
 const yScale = computed(() => {
   const scale = props.chart?.scale
@@ -167,24 +193,31 @@ const yScale = computed(() => {
 const yAxisLabel = computed(() => props.chart?.properties.y_axis ?? 'Win rate (%)')
 const xAxisLabel = computed(() => props.chart?.properties.x_axis ?? 'X')
 
-const xLabels = computed(() =>
-  props.chart ? getChartXLabels(props.chart) : [],
-)
+function formatXLabel(label: string): string {
+  if (!isFunctionAxis.value) return label
+  return label
+    .replace(/\s+TRACK$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
 
 function yToPlot(y: number): number {
   const { y_min, y_max } = yScale.value
   const span = Math.max(y_max - y_min, 1)
+  const { plot } = layout.value
   return plot.top + plot.height - ((y - y_min) / span) * plot.height
 }
 
 function xPos(index: number): number {
   const n = xLabels.value.length
+  const { plot } = layout.value
   if (n <= 1) return plot.left + plot.width / 2
   return plot.left + (index / (n - 1)) * plot.width
 }
 
 function pointX(label: string): number {
   const idx = xLabels.value.indexOf(label)
+  const { plot } = layout.value
   return idx >= 0 ? xPos(idx) : plot.left
 }
 
@@ -233,7 +266,7 @@ const areaPath = computed(() => {
   const last = primary.points[primary.points.length - 1]
   const first = primary.points[0]
   if (!last || !first) return ''
-  const base = plot.top + plot.height
+  const base = layout.value.plot.top + layout.value.plot.height
   return `${primary.d} L${last.x},${base} L${first.x},${base} Z`
 })
 
@@ -257,13 +290,14 @@ const ariaLabel = computed(() =>
 .wr-chart {
   display: flex;
   flex-direction: column;
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   min-height: 392px;
 }
 .wr-svg {
   display: block;
   width: 100%;
-  height: 340px;
+  height: auto;
   min-height: 340px;
   flex-shrink: 0;
 }
@@ -313,6 +347,10 @@ const ariaLabel = computed(() =>
 .wr-tick-x {
   font-size: 12.5px;
   fill: var(--t1);
+}
+.wr-tick-x-rotated {
+  font-size: 9.5px;
+  letter-spacing: 0.2px;
 }
 .wr-axis-title,
 .wr-axis-sub {

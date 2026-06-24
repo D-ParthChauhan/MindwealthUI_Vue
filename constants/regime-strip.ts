@@ -401,10 +401,11 @@ export function buildRegimeStrip(path: string, ctx: RegimeStripContext): RegimeS
         items.push(chip('TOP ALERT', ow.message, 'var(--red)'))
       }
       if (ow?.kpis) {
-        items.push(chip('BT WR', `${ow.kpis.backtest_wr}%`, 'var(--green)'))
-        items.push(chip('FWD WR', `${ow.kpis.forward_wr}%`, 'var(--blue)'))
-        if (ow.kpis.forced_portfolio_ytd) {
-          items.push(chip('FORCED YTD', `+${ow.kpis.forced_portfolio_ytd}%`, 'var(--gold)'))
+        if (ow.kpis.backtest_wr != null) {
+          items.push(chip('BT WR', `${ow.kpis.backtest_wr}%`, 'var(--green)'))
+        }
+        if (ow.kpis.forward_wr != null) {
+          items.push(chip('FWD WR', `${ow.kpis.forward_wr}%`, 'var(--blue)'))
         }
       }
       return {

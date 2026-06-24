@@ -178,7 +178,6 @@ export function enrichSignalSurface(
     ...(apiRecord ?? {}),
   }
   const missingFields: string[] = []
-  const hasApiEnrichment = apiRecord?.composite_score != null
 
   const compositeScore = toNumber(
     apiRecord?.composite_score ??
@@ -197,7 +196,8 @@ export function enrichSignalSurface(
         'Window Remaining %',
         'Window Remaining (%)',
         'window_remaining',
-        'reward_remaining_pct',
+        'Timeliness Score',
+        'timeliness_score',
       ]),
   )
   const mtmPct =
@@ -232,12 +232,34 @@ export function enrichSignalSurface(
     compositeScore,
     windowRemainingPct,
     upsideRemainingPct: toNumber(
-      pickRaw(raw, ['upside_remaining_pct', 'Upside Remaining %', 'upside_remaining', 'reward_remaining_pct']),
+      pickRaw(raw, [
+        'upside_remaining_pct',
+        'Upside Remaining %',
+        'upside_remaining',
+        'reward_remaining_pct',
+        'Reward Remaining [%]',
+      ]),
     ),
-    er: toNumber(apiRecord?.er ?? pickRaw(raw, ['er', 'E[R]', 'expected_return', 'Expected Return %', 'expected_return'])),
+    er: toNumber(
+      apiRecord?.er ??
+        pickRaw(raw, [
+          'er',
+          'E[R]',
+          'expected_return',
+          'Expected Return %',
+          'Expected Return E[R] [%]',
+        ]),
+    ),
     signalAlpha: toNumber(
       apiRecord?.signal_alpha ??
-        pickRaw(raw, ['signal_alpha', 'signal_alpha_per_trade', 'Signal Alpha', 'alpha', 'Alpha %']),
+        pickRaw(raw, [
+          'signal_alpha',
+          'signal_alpha_per_trade',
+          'Signal Alpha',
+          'Signal Alpha Per Trade [%]',
+          'alpha',
+          'Alpha %',
+        ]),
     ),
     sharpe: toNumber(
       pickRaw(raw, [
@@ -252,8 +274,12 @@ export function enrichSignalSurface(
       apiRecord?.avg_hold_days ??
         pickRaw(raw, ['avg_hold_days', 'Avg Hold Days', 'avg_hold_all_trades', 'Average Holding Period (days)']),
     ),
-    rrStatic: toNumber(apiRecord?.rr_static ?? pickRaw(raw, ['rr_static', 'R:R Static', 'RR Static'])),
-    rrDynamic: toNumber(apiRecord?.rr_dynamic ?? pickRaw(raw, ['rr_dynamic', 'R:R Dynamic', 'RR Dynamic'])),
+    rrStatic: toNumber(
+      apiRecord?.rr_static ?? pickRaw(raw, ['rr_static', 'R:R Static', 'RR Static']),
+    ),
+    rrDynamic: toNumber(
+      apiRecord?.rr_dynamic ?? pickRaw(raw, ['rr_dynamic', 'R:R Dynamic', 'RR Dynamic']),
+    ),
     intrinsicLagDays: toInt(
       pickRaw(raw, ['intrinsic_lag_days', 'Intrinsic Lag Days', 'detection_lag_days']),
     ),
@@ -270,7 +296,7 @@ export function enrichSignalSurface(
     alphaInterpretation: parseAlphaInterpretation(
       apiRecord?.alpha_interpretation ?? pickRaw(raw, ['alpha_interpretation']),
     ),
-    missingFields: hasApiEnrichment ? [] : missingFields,
+    missingFields,
   }
 }
 

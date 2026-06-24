@@ -444,6 +444,7 @@ export function getMockPerformance(): PerformanceResponse {
     ],
     aggregates: {
       avg_win_rate: 89.9,
+      avg_cagr: 24.3,
       total_trades: 3821,
       avg_sharpe: 1.08,
     },
@@ -466,9 +467,8 @@ export function getMockOverwatch(): OverwatchResponse {
     count: 1,
     message: 'DeltaDrift short degradation',
     kpis: {
-      backtest_wr: 89.9,
-      forward_wr: 84.2,
-      forced_portfolio_ytd: 18.4,
+      backtest_wr: 87.3,
+      forward_wr: 88.1,
     },
     function_health: [
       { name: 'FRACTAL TRACK', status: 'healthy', bt_wr: 100, fwd_wr: 96.2, trades: 85 },

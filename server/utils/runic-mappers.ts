@@ -366,8 +366,8 @@ function isRecentFireDate(dateStr: string): boolean {
   const d = new Date(dateStr)
   if (Number.isNaN(d.getTime())) return false
   const daysDiff = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24)
-  // Current-episode fires may be dated slightly ahead of the nightly as-of date
-  return daysDiff > -45 && daysDiff < 400
+  // Past fires only; allow one day of as-of skew. Future dates are not "live" episodes.
+  return daysDiff >= -1 && daysDiff < 400
 }
 
 function analogContext(d: Record<string, unknown>): string {

@@ -216,6 +216,28 @@ export interface StrategyHealthResponse {
   strategy_health: StrategyHealthRow[]
 }
 
+export interface GateA2bRow {
+  function: string
+  interval: string
+  direction: string
+  fwd_wr?: number
+  trades?: number
+  verdict?: string
+  approved?: boolean
+  bt_cagr?: number
+}
+
+export interface GateA2bResponse {
+  report_date?: string
+  source_file?: string
+  floor_pct?: number
+  gates: GateA2bRow[]
+  row_count?: number
+  approved_count?: number
+  disapproved_count?: number
+  avg_bt_cagr?: number
+}
+
 export interface DegradationCombo {
   asset: string
   function: string
@@ -284,9 +306,10 @@ export interface PerformanceResponse {
   rows: PerformanceRow[]
   aggregates?: {
     avg_win_rate: number | null
-    avg_win_rate_source?: 'api' | 'computed'
+    avg_win_rate_source?: 'api' | 'rows' | 'signals'
+    avg_backtest_win_rate?: number | null
     avg_cagr?: number
-    total_trades: number
+    total_trades?: number | null
     avg_sharpe: number
     function_count?: number
   }
@@ -328,10 +351,10 @@ export interface CombinedPerformanceReportResponse {
   forward_testing: CombinedPerformanceReportRow[]
   latest_performance: CombinedPerformanceReportRow[]
   aggregates?: {
-    avg_forward_wr: number
-    avg_backtest_wr: number
-    total_trades: number
-    degrading_count: number
+    avg_forward_wr?: number | null
+    avg_backtest_wr?: number | null
+    total_trades?: number | null
+    degrading_count?: number | null
   }
 }
 
@@ -394,9 +417,8 @@ export interface OverwatchResponse {
   panel_alerts?: OverwatchPanelAlert[]
   system_checks?: OverwatchSystemCheck[]
   kpis?: {
-    backtest_wr: number
-    forward_wr: number
-    forced_portfolio_ytd: number
+    backtest_wr?: number | null
+    forward_wr?: number | null
   }
   function_health?: Array<{
     name: string
@@ -457,6 +479,8 @@ export interface ShortlistResponse {
   count: number
   report_text: string
   rows?: Array<Record<string, string | number | boolean | null>>
+  /** Parsed Tier A signals from Claude report machine-line / surface_json rows */
+  signals?: Signal[]
 }
 
 export interface MonitoredTrade {

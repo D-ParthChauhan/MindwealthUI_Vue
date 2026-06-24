@@ -14,6 +14,7 @@ import type {
 } from '~/types/api'
 import { NAMED_COMBO_LETTERS } from '~/constants/runic-macro-data'
 import { enrichVariablesWithFreshness } from '~/utils/macro-variables'
+import { hasDisplayableAnalogData } from '~/utils/runic-analog'
 
 export function useRunicMacro() {
   const { data: nightly, pending: nightlyPending } = useFetch<RunicNightlyResponse>('/api/runic/nightly', {
@@ -78,6 +79,10 @@ export function useRunicMacro() {
     },
   )
 
+  const showAnalogTab = computed(
+    () => !analogPending.value && hasDisplayableAnalogData(Object.values(analogPanels.value ?? {})),
+  )
+
   return {
     nightly,
     nightlyPending,
@@ -94,6 +99,7 @@ export function useRunicMacro() {
     analogLetters,
     analogPanels,
     analogPending,
+    showAnalogTab,
     cancelTracker,
   }
 }

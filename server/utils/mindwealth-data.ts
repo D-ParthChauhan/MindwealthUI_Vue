@@ -26,6 +26,7 @@ import type {
   SignalSummaryResponse,
   SignalsListResponse,
   StrategyHealthResponse,
+  GateA2bResponse,
 } from '~/types/api'
 import type {
   ConvictionContradiction,
@@ -47,14 +48,21 @@ import {
 } from './mindwealth-client'
 import {
   buildSignalsSummary,
+  avgCagrFromGateA2b,
   parseForwardTestingRows,
   parsePercentValue,
   parseSymbolField,
-  performanceRecordToRow,
   recordToSignal,
   recordsToSignals,
   signalToTopSignal,
+  normalizeShortlistRecord,
+  shortlistRowsToSignals,
 } from './signal-parsers'
+import {
+  computeWrAggregatesFromRows,
+  computeWrAggregatesFromSignals,
+  resolveWrAggregates,
+} from '~/utils/performance-aggregates'
 import { formatPersistenceSignals } from '~/utils/runic-regime'
 import { buildWinRateChart } from '~/utils/win-rate-chart'
 import { UNAVAILABLE_COMPUTE } from '~/constants/unavailable'
@@ -112,7 +120,7 @@ type ValuationTaxBreakdown = {
 
 type TickerFull = TickerSummary & {
   bq_components?: Array<{ name?: string; score?: number; source?: string }>
-  fd_votes?: Array<{ label?: string; direction?: string }>
+  fd_votes?: Record<string, { vote?: string; rationale?: string }> | Array<{ label?: string; direction?: string }>
   valuation_tax?: number
   valuation_tax_breakdown?: ValuationTaxBreakdown
   oey?: number
@@ -243,18 +251,64 @@ function parseBqComponents(raw: unknown): ConvictionSignalDetail['dimensions'] {
   return []
 }
 
+function formatFdVoteKey(key: string): string {
+  return key
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function parseFdVoteEntry(
+  key: string,
+  val: unknown,
+): ConvictionSignalDetail['fdVotes'][number] | null {
+  const name = formatFdVoteKey(key)
+  if (val == null) return null
+  if (typeof val === 'string') {
+    return {
+      label: `${name}: ${val}`,
+      direction: normalizeFd(val) ?? 'stable',
+    }
+  }
+  if (typeof val === 'object') {
+    const obj = val as {
+      vote?: string
+      direction?: string
+      rationale?: string
+      label?: string
+    }
+    const direction = normalizeFd(obj.vote ?? obj.direction ?? obj.label) ?? 'stable'
+    const rationale = obj.rationale?.trim()
+    const label = rationale ? `${name}: ${rationale}` : name
+    return { label, direction, rationale }
+  }
+  return { label: name, direction: 'stable' }
+}
+
 function parseFdVotes(raw: unknown): ConvictionSignalDetail['fdVotes'] {
   if (Array.isArray(raw)) {
-    return raw.map((v) => ({
-      label: String((v as { label?: string }).label ?? ''),
-      direction: normalizeFd((v as { direction?: string }).direction) ?? 'stable',
-    }))
+    return raw
+      .map((v) => {
+        const obj = v as {
+          label?: string
+          direction?: string
+          vote?: string
+          rationale?: string
+        }
+        const direction = normalizeFd(obj.vote ?? obj.direction) ?? 'stable'
+        const label = String(obj.label ?? obj.rationale ?? '').trim()
+        if (!label) return null
+        return {
+          label,
+          direction,
+          rationale: obj.rationale,
+        }
+      })
+      .filter((v): v is ConvictionSignalDetail['fdVotes'][number] => v != null)
   }
   if (raw && typeof raw === 'object') {
-    return Object.entries(raw as Record<string, unknown>).map(([key, val]) => ({
-      label: `${key.replace(/_/g, ' ')}: ${val}`,
-      direction: normalizeFd(val as string) ?? 'stable',
-    }))
+    return Object.entries(raw as Record<string, unknown>)
+      .map(([key, val]) => parseFdVoteEntry(key, val))
+      .filter((v): v is ConvictionSignalDetail['fdVotes'][number] => v != null)
   }
   return []
 }
@@ -281,7 +335,7 @@ function tickerToDetail(t: TickerFull, rec?: Record<string, unknown>): Convictio
     oeyFloorLabel: '',
     pe: Number(t.pe_fwd ?? 0),
     pePercentile: Number(t.pe_percentile ?? 0),
-    fdVotes: parseFdVotes(t.fd_votes),
+    fdVotes: parseFdVotes(t.fd_votes ?? rec?.fd_votes),
     fdSummary: '',
     taxNote: formatValuationTaxBreakdown(t.valuation_tax_breakdown, valuationTax),
     verdictNote: String(rec?.rationale ?? t.rationale ?? ''),
@@ -482,38 +536,38 @@ function combinedPerformanceRowFromRecord(
 }
 
 export async function loadCombinedPerformanceReport(): Promise<CombinedPerformanceReportResponse | null> {
-  const overlay = await fetchOverlayFile('combined_performance_report.csv')
-  if (!overlay?.records?.length) return null
+  const raw = await mindwealthFetch<PerformanceApiResponse>('/analytics/performance')
+  if (!raw?.records?.length) return null
 
-  const forward_testing = overlay.records
+  const forward_testing = raw.records
     .map((rec) => combinedPerformanceRowFromRecord(rec, 'forward_testing'))
     .filter((r): r is CombinedPerformanceReportRow => r != null)
-  const latest_performance = overlay.records
+  const latest_performance = raw.records
     .map((rec) => combinedPerformanceRowFromRecord(rec, 'latest_performance'))
     .filter((r): r is CombinedPerformanceReportRow => r != null)
 
-  const avgFwd =
-    forward_testing.length > 0
-      ? forward_testing.reduce((a, r) => a + r.win_percentage, 0) / forward_testing.length
-      : 0
-  const avgBt =
-    forward_testing.length > 0
-      ? forward_testing.reduce((a, r) => a + r.avg_backtested_win_rate, 0) / forward_testing.length
-      : 0
-  const degrading = forward_testing.filter((r) => r.win_percentage < r.avg_backtested_win_rate - 10).length
+  const apiAggregates = parsePerformanceApiAggregates(raw)
+  const fromRows = computeWrAggregatesFromRows(
+    forward_testing.map((r) => ({
+      win_percentage: r.win_percentage,
+      avg_backtested_win_rate: r.avg_backtested_win_rate,
+      total_trades: r.total_trades,
+    })),
+  )
+  const wr = resolveWrAggregates(apiAggregates, fromRows)
 
-  const dateMatch = overlay.source_file?.match(/(\d{4}-\d{2}-\d{2})/)
+  const dateMatch = raw.source_file?.match(/(\d{4}-\d{2}-\d{2})/)
 
   return {
-    meta: metaFromSource(overlay.source_file),
+    meta: metaFromSource(raw.source_file),
     report_date: dateMatch?.[1],
     forward_testing,
     latest_performance,
     aggregates: {
-      avg_forward_wr: Math.round(avgFwd * 10) / 10,
-      avg_backtest_wr: Math.round(avgBt * 10) / 10,
-      total_trades: forward_testing.reduce((a, r) => a + r.total_trades, 0),
-      degrading_count: degrading,
+      avg_forward_wr: wr.avg_forward_wr,
+      avg_backtest_wr: wr.avg_backtest_wr,
+      total_trades: wr.total_trades ?? apiAggregates.total_trades,
+      degrading_count: apiAggregates.degrading_count,
     },
   }
 }
@@ -590,6 +644,20 @@ export async function loadStrategyHealth(reportDate?: string): Promise<StrategyH
   return mindwealthFetch<StrategyHealthResponse>(`/signals/strategy-health${query}`)
 }
 
+export async function loadGateA2b(reportDate?: string): Promise<GateA2bResponse | null> {
+  const query = reportDate ? `?report_date=${encodeURIComponent(reportDate)}` : ''
+  return mindwealthFetch<GateA2bResponse>(`/signals/gate-a2b${query}`)
+}
+
+async function loadAllSignalRecords(): Promise<Record<string, unknown>[]> {
+  const report = await mindwealthFetch<{ records?: Record<string, unknown>[] }>(
+    '/signals/reports/all-signal/latest',
+  )
+  if (report?.records?.length) return report.records
+  const overlay = await fetchOverlayFile('all_signal.csv')
+  return overlay?.records ?? []
+}
+
 export async function loadSignalCheckDegradation(): Promise<CheckDegradationResponse | null> {
   return mindwealthFetch<CheckDegradationResponse>('/signals/check-degradation', {
     method: 'POST',
@@ -611,41 +679,67 @@ function apiAggregateTotalTrades(value: unknown): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** Mean forward win % across latest-performance rows (excludes Forward Testing section). */
-function averagePerformanceWinRate(rows: PerformanceRow[]): number | null {
-  if (!rows.length) return null
-  const sum = rows.reduce((acc, row) => acc + row.win_percentage, 0)
-  return Math.round((sum / rows.length) * 10) / 10
+type PerformanceApiResponse = {
+  source_file?: string
+  row_count?: number
+  avg_win_rate?: number | null
+  avg_backtest_win_rate?: number | null
+  total_trades?: number | null
+  degrading_count?: number | null
+  records?: Record<string, unknown>[]
 }
 
-function sumPerformanceTrades(rows: PerformanceRow[]): number {
-  return rows.reduce((acc, row) => acc + row.total_trades, 0)
+function parsePerformanceApiAggregates(raw: PerformanceApiResponse) {
+  return {
+    avg_win_rate: apiAggregateWinRate(raw.avg_win_rate),
+    avg_backtest_win_rate: apiAggregateWinRate(raw.avg_backtest_win_rate),
+    total_trades: apiAggregateTotalTrades(raw.total_trades),
+    degrading_count: apiAggregateTotalTrades(raw.degrading_count),
+  }
+}
+
+function forwardTestingRowToPerformanceRow(row: CombinedPerformanceReportRow): PerformanceRow {
+  return {
+    function: row.strategy,
+    strategy: row.strategy.toUpperCase().replace(/\s+/g, '_'),
+    interval: row.interval,
+    signal_type: row.signal_type,
+    total_trades: row.total_trades,
+    win_percentage: row.win_percentage,
+    max_holding_days: row.max_holding_days,
+    min_holding_days: row.min_holding_days,
+    avg_holding_days: row.avg_holding_days,
+    best_profit: row.best_profit ?? 0,
+    worst_profit: row.worst_profit ?? 0,
+    avg_profit: row.avg_profit ?? 0,
+    avg_backtested_win_rate: row.avg_backtested_win_rate,
+  }
 }
 
 export async function loadPerformance(): Promise<PerformanceResponse | null> {
-  const raw = await mindwealthFetch<{
-    source_file?: string
-    row_count?: number
-    avg_win_rate?: number | null
-    total_trades?: number | null
-    records?: Record<string, unknown>[]
-  }>('/analytics/performance')
+  const [raw, gateA2b, allSignalRecords, shortlist] = await Promise.all([
+    mindwealthFetch<PerformanceApiResponse>('/analytics/performance'),
+    loadGateA2b(),
+    loadAllSignalRecords(),
+    loadShortlist(),
+  ])
   if (!raw?.records?.length) return null
 
-  const rows = raw.records
-    .map(performanceRecordToRow)
-    .filter((r): r is NonNullable<typeof r> => r != null)
+  const forwardRows = raw.records
+    .map((rec) => combinedPerformanceRowFromRecord(rec, 'forward_testing'))
+    .filter((r): r is CombinedPerformanceReportRow => r != null)
+  const rows = forwardRows.map(forwardTestingRowToPerformanceRow)
+  const apiAggregates = parsePerformanceApiAggregates(raw)
+  const fromRows = computeWrAggregatesFromRows(rows)
+  const fromSignals = computeWrAggregatesFromSignals(shortlist?.signals ?? [])
+  const wr = resolveWrAggregates(apiAggregates, fromRows, fromSignals)
 
-  const avgWinFromApi = apiAggregateWinRate(raw.avg_win_rate)
-  const avgWinLocal = averagePerformanceWinRate(rows)
-  const avgWin = avgWinFromApi ?? avgWinLocal
-
-  const totalFromApi = apiAggregateTotalTrades(raw.total_trades)
-  const totalTrades = totalFromApi ?? sumPerformanceTrades(rows)
-
-  const cagrs = raw.records
-    .map((rec) => parsePercentValue(rec['Backtested Strategy CAGR [%]']))
-    .filter((n) => Number.isFinite(n) && n !== 0)
+  const avgCagr =
+    gateA2b?.avg_bt_cagr != null && Number.isFinite(gateA2b.avg_bt_cagr)
+      ? Math.round(gateA2b.avg_bt_cagr * 10) / 10
+      : gateA2b?.gates?.length
+        ? avgCagrFromGateA2b(gateA2b.gates, allSignalRecords)
+        : undefined
   const sharpes = raw.records
     .map((rec) => {
       const v = rec['Backtested Strategy Sharpe Ratio']
@@ -653,10 +747,6 @@ export async function loadPerformance(): Promise<PerformanceResponse | null> {
       return n
     })
     .filter((n) => Number.isFinite(n) && n !== 0)
-  const avgCagr =
-    cagrs.length > 0
-      ? Math.round((cagrs.reduce((a, n) => a + n, 0) / cagrs.length) * 10) / 10
-      : undefined
   const avgSharpe =
     sharpes.length > 0
       ? Math.round((sharpes.reduce((a, n) => a + n, 0) / sharpes.length) * 100) / 100
@@ -674,10 +764,11 @@ export async function loadPerformance(): Promise<PerformanceResponse | null> {
     meta: metaFromSource(raw.source_file),
     rows,
     aggregates: {
-      avg_win_rate: avgWin,
-      avg_win_rate_source: avgWinFromApi != null ? 'api' : avgWinLocal != null ? 'computed' : undefined,
+      avg_win_rate: wr.avg_forward_wr,
+      avg_win_rate_source: wr.source,
+      avg_backtest_win_rate: wr.avg_backtest_wr,
       avg_cagr: avgCagr,
-      total_trades: totalTrades,
+      total_trades: wr.total_trades ?? apiAggregates.total_trades,
       avg_sharpe: avgSharpe ?? 0,
       function_count: functionCount,
     },
@@ -752,20 +843,21 @@ export async function loadSentiment(): Promise<SentimentResponse | null> {
 }
 
 export async function loadOverwatch(): Promise<OverwatchResponse | null> {
-  const perf = await fetchOverlayFile('combined_performance_report.csv')
+  const [perf, shortlist] = await Promise.all([
+    mindwealthFetch<PerformanceApiResponse>('/analytics/performance'),
+    loadShortlist(),
+  ])
   if (!perf?.records?.length) return null
   const alerts = parseForwardTestingRows(perf.records)
-  const perfRows = perf.records
-    .map(performanceRecordToRow)
-    .filter((r): r is NonNullable<typeof r> => r != null)
-  const avgBt =
-    perfRows.length > 0
-      ? perfRows.reduce((a, r) => a + r.avg_backtested_win_rate, 0) / perfRows.length
-      : 0
-  const avgFwd =
-    perfRows.length > 0
-      ? perfRows.reduce((a, r) => a + r.win_percentage, 0) / perfRows.length
-      : 0
+  const apiAggregates = parsePerformanceApiAggregates(perf)
+
+  const forwardRows = perf.records
+    .map((rec) => combinedPerformanceRowFromRecord(rec, 'forward_testing'))
+    .filter((r): r is CombinedPerformanceReportRow => r != null)
+    .map(forwardTestingRowToPerformanceRow)
+  const fromRows = computeWrAggregatesFromRows(forwardRows)
+  const fromSignals = computeWrAggregatesFromSignals(shortlist?.signals ?? [])
+  const wr = resolveWrAggregates(apiAggregates, fromRows, fromSignals)
 
   const functionHealth = perf.records
     .filter((r) => String(r.Function ?? '') === 'Forward Testing')
@@ -788,9 +880,6 @@ export async function loadOverwatch(): Promise<OverwatchResponse | null> {
     })
 
   const top = alerts[0]
-  const ytd = await mindwealthFetch<{
-    forced_portfolio_ytd?: number
-  }>('/analytics/portfolio-ytd')
 
   return {
     meta: metaFromSource(perf.source_file),
@@ -800,9 +889,8 @@ export async function loadOverwatch(): Promise<OverwatchResponse | null> {
       ? `${top.strategy} ${top.signal_type.toLowerCase()} degradation`
       : 'No degradation alerts',
     kpis: {
-      backtest_wr: Math.round(avgBt * 10) / 10,
-      forward_wr: Math.round(avgFwd * 10) / 10,
-      forced_portfolio_ytd: Math.round((ytd?.forced_portfolio_ytd ?? 0) * 100) / 100,
+      backtest_wr: wr.avg_backtest_wr,
+      forward_wr: wr.avg_forward_wr,
     },
     function_health: functionHealth,
     system_logs: [
@@ -898,18 +986,22 @@ export async function loadDashboard(): Promise<DashboardResponse | null> {
     ? buildWinRateChart(performance.rows, performance.meta ?? outstanding.meta)
     : undefined
 
+  const winRateMomLabel =
+    avgWinSource === 'api'
+      ? 'from analytics API'
+      : avgWinSource === 'signals'
+        ? 'from Claude shortlist signals'
+        : avgWinSource === 'rows'
+          ? 'from forward-testing rows'
+          : 'awaiting API aggregate'
+
   return {
     meta: outstanding.meta,
     kpis: {
       avg_win_rate: apiAvgWin,
       avg_win_rate_display: apiAvgWin != null ? `${apiAvgWin}%` : UNAVAILABLE_COMPUTE,
       win_rate_mom: 0,
-      win_rate_mom_display:
-        avgWinSource === 'api'
-          ? 'from analytics API'
-          : avgWinSource === 'computed'
-            ? 'computed from performance rows'
-            : 'live from trade store',
+      win_rate_mom_display: winRateMomLabel,
       outstanding_count: outstanding.signals.length,
       new_today: (await loadSignalCounts())?.new ?? 0,
       sentiment_score: ssiKpi?.score ?? breadth?.sentiment.score ?? '+0.0',
@@ -1245,11 +1337,15 @@ export async function loadShortlist(): Promise<ShortlistResponse | null> {
         timezone: 'UTC',
       }
     }
+    const rawRows = report.records ?? []
+    const rows = rawRows.map((r) => normalizeShortlistRecord(r as Record<string, unknown>))
+    const signals = shortlistRowsToSignals(rawRows as Record<string, unknown>[])
     return {
       meta,
-      count: report.row_count ?? report.records?.length ?? 0,
+      count: report.row_count ?? rows.length,
       report_text: report.markdown,
-      rows: report.records,
+      rows,
+      signals,
     }
   }
 
@@ -1265,6 +1361,7 @@ export async function loadShortlist(): Promise<ShortlistResponse | null> {
       interval: s.interval,
       signal_type: s.signal_type,
     })),
+    signals: newSig.signals,
   }
 }
 
