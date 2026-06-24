@@ -153,16 +153,6 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId' | 'regime' 
           { id: 'combo-g', label: 'Combo G · Hidden Stress', dot: 'off' },
         ],
       },
-      {
-        label: 'Extrema Gate',
-        static: '≥80% HIT RATE<br>≥5 INSTANCES MIN<br>PCTL ≥85th OR ≤15th<br>OR RARE (≤8 inst, 80%+)<br><span style="color:var(--gold);font-weight:600">BACKTEST DECIDES.</span><br><span style="color:var(--t3)">Not z-score. Percentile rank.</span><br><span style="color:var(--t3)">Every threshold empirically validated.</span>',
-        items: [],
-      },
-      {
-        label: 'Runic Scope — Macro Only',
-        static: 'S&P 500 / Nasdaq 100<br>VIX + Term Structure (VXTS)<br>HY Credit Spreads (OAS)<br>CFTC COT Flow (TFF report)<br>Gold/Silver Ratio (GSR)<br>WTI Oil 4-week change<br>CAPE / Shiller PE<br>Fed Balance Sheet (WALCL)<br>USD/CNH exchange rate<br>CPI Surprise vs consensus<br>10Y–2Y Yield Curve<br><span style="color:var(--t4)">Not individual stocks</span>',
-        items: [],
-      },
     ],
   },
   '/sentiment': {
