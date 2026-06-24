@@ -13,7 +13,10 @@ import type {
   SentimentResponse,
   ShortlistResponse,
   SignalCountsResponse,
+  SignalSurfaceResponse,
+  SignalSummaryResponse,
   SignalsListResponse,
+  StrategyHealthResponse,
 } from '~/types/api'
 import type { ApiMeta } from '~/types/api'
 
@@ -47,6 +50,23 @@ export function useApi() {
 
   const fetchSignalCounts = () =>
     useFetch<SignalCountsResponse>('/api/signals/counts', { key: 'api-signal-counts' })
+
+  const fetchSignalSurface = (report: MaybeRef<string>) =>
+    useFetch<SignalSurfaceResponse>('/api/signals/surface', {
+      key: computed(() => `api-signals-surface-${toValue(report)}`),
+      query: computed(() => ({ report: toValue(report) })),
+    })
+
+  const fetchSignalSummary = (report: MaybeRef<string>) =>
+    useFetch<SignalSummaryResponse>('/api/signals/summary', {
+      key: computed(() => `api-signals-summary-${toValue(report)}`),
+      query: computed(() => ({ report: toValue(report) })),
+    })
+
+  const fetchStrategyHealth = () =>
+    useFetch<StrategyHealthResponse>('/api/signals/strategy-health', {
+      key: 'api-signals-strategy-health',
+    })
 
   const fetchPerformance = () =>
     useFetch<PerformanceResponse>('/api/performance', { key: 'api-performance' })
@@ -84,6 +104,9 @@ export function useApi() {
     fetchHorizontalNewHigh,
     fetchCombinedPerformanceReport,
     fetchSignalCounts,
+    fetchSignalSurface,
+    fetchSignalSummary,
+    fetchStrategyHealth,
     fetchPerformance,
     fetchBreadth,
     fetchSentiment,

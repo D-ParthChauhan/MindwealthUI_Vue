@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="cv-section-hint" style="margin-bottom:10px">Signals where quant model direction conflicts with Conviction Engine verdict</div>
+    <div class="cv-section-hint">Quant signals conflicting with conviction verdict</div>
     <div
       v-for="item in contradictions"
       :key="item.id"

@@ -1,3 +1,5 @@
+import type { ApiDataSource } from '~/types/api'
+
 export type ConvictionVerdict =
   | 'MAX CONVICTION'
   | 'TACTICAL'
@@ -94,6 +96,7 @@ export interface ConvictionHealth {
 }
 
 export interface ConvictionResponse {
+  data_source?: ApiDataSource
   asOf: string
   storeLive: boolean
   health: ConvictionHealth

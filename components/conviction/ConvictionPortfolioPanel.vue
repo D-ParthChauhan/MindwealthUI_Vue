@@ -1,6 +1,6 @@
 <template>
   <div>
-    <div class="cv-section-hint" style="margin-bottom:10px">Current held positions — conviction monitored daily</div>
+    <div class="cv-section-hint">Held positions monitored daily against conviction scores</div>
     <div class="cv-portfolio-grid">
       <div
         v-for="card in portfolio"

@@ -11,9 +11,9 @@
         Systematic discipline. Macro intelligence. Fundamental conviction. Every morning, before the market opens, the platform has already sized your portfolio, checked system health, and written your briefing.
       </p>
       <div class="platform-stats">
-        <div><div class="platform-stat-v">89.9%</div><div class="hsl">AVG WIN RATE</div></div>
-        <div><div class="platform-stat-v">24.3%</div><div class="hsl">AVG 10YR CAGR</div></div>
-        <div><div class="platform-stat-v">1.08</div><div class="hsl">SHARPE RATIO</div></div>
+        <div><div class="platform-stat-v">{{ avgWinRate }}</div><div class="hsl">AVG WIN RATE</div></div>
+        <div><div class="platform-stat-v">{{ avgCagr }}</div><div class="hsl">AVG 10YR CAGR</div></div>
+        <div><div class="platform-stat-v">{{ sharpeRatio }}</div><div class="hsl">SHARPE RATIO</div></div>
       </div>
       <div class="platform-footer">
         Authorized access · London · Singapore · North America<br>
@@ -36,6 +36,8 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+
+const { avgWinRate, avgCagr, sharpeRatio } = useLandingStats()
 
 const archBlocks = [
   {

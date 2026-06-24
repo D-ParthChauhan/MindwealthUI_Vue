@@ -2,14 +2,16 @@
   <div>
     <div v-if="isOpen" class="cp-backdrop" aria-hidden="true" @click="close" />
     <button
+      v-show="!isOpen"
       type="button"
       class="cbtn"
-      :class="{ pulse: pendingAlert && !isOpen }"
-      aria-label="AI Analyst"
+      aria-label="Open AI Analyst"
+      :aria-expanded="isOpen"
       @click="toggle"
     >
-      💬
-      <div class="nb" :class="{ show: pendingAlert && !isOpen }" />
+      <span class="cbtn-glass" aria-hidden="true" />
+      <span class="cbtn-icon" aria-hidden="true">💬</span>
+      <span v-if="pendingAlert && !isOpen" class="cbtn-badge" aria-hidden="true" />
     </button>
     <AnalystPanelInner />
   </div>

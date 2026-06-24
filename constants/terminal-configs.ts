@@ -6,6 +6,8 @@ import {
 } from '~/constants/regime-strip'
 import type {
   DashboardResponse,
+  MacroCombosResponse,
+  MacroStatusResponse,
   OverwatchResponse,
   PortfolioResponse,
   RunicNightlyResponse,
@@ -13,6 +15,14 @@ import type {
   SignalCountsResponse,
 } from '~/types/api'
 import { SIGNAL_FUNCTION_FILTER_IDS } from '~/utils/signal-filters'
+import { dashboardFunctionNavIds } from '~/utils/dashboard-functions'
+import { findByFunctionName } from '~/utils/function-match'
+import {
+  buildMacroNavGroups,
+  buildMacroNavGroupsFromCombos,
+  defaultMacroNavId,
+  defaultMacroNavIdFromCombos,
+} from '~/utils/runic-nav'
 
 export interface TerminalPageConfig {
   activeTab: TabId
@@ -37,6 +47,7 @@ export interface TerminalPageConfig {
       chips?: Array<{ id: string; label: string }>
     }>
     static?: string
+    widget?: 'signals-display-mode' | 'portfolio-ceiling' | 'portfolio-flags'
   }>
   navActiveId: string
   multiActiveIds?: string[]
@@ -113,6 +124,7 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId' | 'regime' 
           { id: 'base-f', label: 'Baseline Divergence', dot: 'off' },
           { id: 'sbi-f', label: 'SBI', dot: 'off' },
         ],
+        widget: 'signals-display-mode',
       },
     ],
   },
@@ -166,11 +178,6 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId' | 'regime' 
           { id: 'l4', label: 'Layer 4 · Regime Multiplier', sub: 'VIX/trend/credit · not a signal', dot: 't' },
         ],
       },
-      {
-        label: 'Note on PulseGauge',
-        static: 'PulseGauge = the <span style="color:var(--gold)">function</span> with AAII-based long/short entry rules (sentiment.py).<br><br>Super Sentiment Index = the <span style="color:var(--purple)">13-signal composite</span>. Expanded version. May replace or extend PulseGauge function rules once backtested.<br><br>Both sit in Functions left panel.<br>SSI sits on its own page here.',
-        items: [],
-      },
     ],
   },
   '/conviction': {
@@ -218,15 +225,19 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId' | 'regime' 
       {
         label: 'Portfolio',
         items: [
-          { id: 'sized', label: 'Sized Allocations', sub: 'regime-aware', dot: 'g' },
-          { id: 'forced', label: 'Forced Portfolio', sub: 'Ahil · constrained opt', dot: 'b' },
+          { id: 'sized', label: 'Sized Allocations', sub: 'regime-aware sizing', dot: 'g' },
+          { id: 'risk', label: 'Portfolio Risk', sub: 'correlation · holdings', dot: 'r' },
           { id: 'pnl', label: 'Live P&L', sub: 'open positions', dot: 'gold' },
-          { id: 'risk', label: 'Portfolio Risk', sub: 'cluster correlation', dot: 'off' },
         ],
       },
       {
-        label: 'Regime Inputs',
-        static: 'VIX regime, SSI multiplier, and credit adjustment are computed from live macro variables and sentiment layers when positions are open.',
+        label: 'Equity deployment ceiling',
+        widget: 'portfolio-ceiling',
+        items: [],
+      },
+      {
+        label: 'Flag guide',
+        widget: 'portfolio-flags',
         items: [],
       },
     ],
@@ -243,11 +254,6 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId' | 'regime' 
           { id: 'forced', label: 'Forced Portfolio', dot: 'g' },
           { id: 'alerts', label: 'Degradation Alerts', dot: 'r' },
         ],
-      },
-      {
-        label: 'Degradation Thresholds',
-        static: 'Live position loss &gt;10% → alert<br>(pod shop rule)<br><br>FWD test WR &lt;60% → alert<br>(absolute floor)<br><br><span style="color:var(--t4)">Not: "lower than backtest"</span><br><span style="color:var(--t4)">That\'s always expected.</span>',
-        items: [],
       },
       {
         label: 'Layer 2 · System',
@@ -313,6 +319,8 @@ export function useTerminalLayout() {
   const { data: portfolioData } = useFetch<PortfolioResponse>('/api/portfolio', { key: 'api-portfolio' })
   const { data: overwatchData } = useFetch<OverwatchResponse>('/api/overwatch', { key: 'api-overwatch' })
   const { data: nightlyData } = useFetch<RunicNightlyResponse>('/api/runic/nightly', { key: 'runic-nightly' })
+  const { data: macroCombosData } = useFetch<MacroCombosResponse>('/api/macro/combos', { key: 'macro-combos' })
+  const { data: macroStatusData } = useFetch<MacroStatusResponse>('/api/macro/status', { key: 'macro-status' })
 
   const cfg = computed(() => {
     const base = configs[route.path]
@@ -336,12 +344,37 @@ export function useTerminalLayout() {
         }),
       }))
     }
+    if (route.path === '/dashboard' && dashboardData.value?.functions_sidebar?.length) {
+      const sidebar = dashboardData.value.functions_sidebar
+      navGroups = navGroups.map((g) => {
+        if (!/functions/i.test(g.label)) return g
+        return {
+          ...g,
+          items: g.items.map((item) => {
+            const apiItem = findByFunctionName(sidebar, item.label, 'name')
+            if (!apiItem) return item
+            return {
+              ...item,
+              sub: apiItem.subtitle,
+              dot: apiItem.status === 'green' ? 'g' : 'r',
+            }
+          }),
+        }
+      })
+    }
+    if (route.path === '/macro' && macroCombosData.value?.combos?.length) {
+      navGroups = buildMacroNavGroupsFromCombos(base.navGroups, macroCombosData.value)
+    } else if (route.path === '/macro' && nightlyData.value?.combo_status_rows?.length) {
+      navGroups = buildMacroNavGroups(base.navGroups, nightlyData.value)
+    }
 
     const stripCtx = {
       counts: counts.value,
       dashboard: dashboardData.value,
       sentiment: sentimentData.value,
       nightly: nightlyData.value,
+      macroStatus: macroStatusData.value,
+      macroCombos: macroCombosData.value,
       conviction: convictionData.value,
       portfolio: portfolioData.value,
       overwatch: overwatchData.value,
@@ -364,6 +397,14 @@ export function useTerminalLayout() {
       const base = configs[path]
       if (!base) return
       if (path === '/signals') ensureSignalViewNav(navActiveId)
+      if (path === '/macro' && macroCombosData.value?.combos?.length) {
+        syncMacroNavFromCombos(base, macroCombosData.value)
+        return
+      }
+      if (path === '/macro' && nightlyData.value?.combo_status_rows?.length) {
+        syncMacroNav(base, nightlyData.value)
+        return
+      }
       const navIds = base.navGroups.flatMap((g) => g.items).map((i) => i.id)
       if (!navIds.includes(navActiveId.value)) {
         navActiveId.value = base.defaultNavId
@@ -372,7 +413,47 @@ export function useTerminalLayout() {
     { immediate: true },
   )
 
+  watch(macroCombosData, (combos) => {
+    if (route.path !== '/macro' || !combos?.combos?.length) return
+    const base = configs['/macro']
+    if (!base) return
+    syncMacroNavFromCombos(base, combos)
+  })
+
+  watch(nightlyData, (nightly) => {
+    if (route.path !== '/macro' || macroCombosData.value?.combos?.length) return
+    if (!nightly?.combo_status_rows?.length) return
+    const base = configs['/macro']
+    if (!base) return
+    syncMacroNav(base, nightly)
+  })
+
+  function syncMacroNavFromCombos(
+    base: (typeof configs)['/macro'],
+    combos: MacroCombosResponse,
+  ) {
+    const navIds = buildMacroNavGroupsFromCombos(base.navGroups, combos)
+      .flatMap((g) => g.items)
+      .map((i) => i.id)
+    if (!navIds.includes(navActiveId.value)) {
+      navActiveId.value = defaultMacroNavIdFromCombos(combos)
+    }
+  }
+
+  function syncMacroNav(
+    base: (typeof configs)['/macro'],
+    nightly: RunicNightlyResponse,
+  ) {
+    const navIds = buildMacroNavGroups(base.navGroups, nightly)
+      .flatMap((g) => g.items)
+      .map((i) => i.id)
+    if (!navIds.includes(navActiveId.value)) {
+      navActiveId.value = defaultMacroNavId(nightly)
+    }
+  }
+
   const { setContext } = useClaudePanel()
+  const { show: showFunctionPopup } = useFunctionPopup()
 
   watch(
     cfg,
@@ -387,6 +468,17 @@ export function useTerminalLayout() {
     if (route.path === '/signals' && SIGNAL_FUNCTION_FILTER_IDS.has(id)) {
       toggleFunctionFilter(id)
       return
+    }
+    if (route.path === '/dashboard') {
+      const functionIds = dashboardFunctionNavIds(cfg.value?.navGroups ?? [])
+      if (functionIds.has(id)) {
+        const item = cfg.value?.navGroups.flatMap((g) => g.items).find((i) => i.id === id)
+        if (item) {
+          showFunctionPopup(item.label)
+          navActiveId.value = id
+          return
+        }
+      }
     }
     navActiveId.value = id
     const item = cfg.value?.navGroups.flatMap((g) => g.items).find((i) => i.id === id)

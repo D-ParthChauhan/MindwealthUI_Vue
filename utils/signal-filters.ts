@@ -79,18 +79,11 @@ export function buildSignalsSummary(signals: Signal[], shortlisted = 0): Signals
     longs.length > 0
       ? Math.round(longs.reduce((a, s) => a + s.win_rate, 0) / longs.length)
       : 0
-  const degradedShort = shorts.find(
-    (s) => s.forward_wr != null && s.win_rate && s.forward_wr < s.win_rate - 10,
-  )
   return {
     long: longs.length,
     short: shorts.length,
     long_pct: longPct,
-    short_note: degradedShort
-      ? `review ${degradedShort.function}`
-      : shorts.length
-        ? `${shorts.length} active shorts`
-        : 'no shorts',
+    short_note: shorts.length ? `${shorts.length} active shorts` : 'no shorts',
     new_long: longs.length,
     new_short: shorts.length,
     shortlisted,
@@ -101,4 +94,30 @@ export function activeFilterLabels(selectedFilterIds: Set<string>): string[] {
   return [...selectedFilterIds]
     .map((id) => SIGNAL_FUNCTION_FILTERS[id])
     .filter((name): name is string => Boolean(name))
+}
+
+export function signalListKey(signal: Signal): string {
+  return `${signal.symbol}|${normalizeFunctionName(signal.function)}|${normalizeIntervalName(signal.interval)}`
+}
+
+export function shortlistRowKey(row: {
+  symbol?: string | number | null
+  function?: string | number | null
+  interval?: string | number | null
+}): string {
+  return `${String(row.symbol ?? '')}|${normalizeFunctionName(String(row.function ?? ''))}|${normalizeIntervalName(String(row.interval ?? ''))}`
+}
+
+export function matchesShortlistRow(
+  signal: Signal,
+  rows: Array<{ symbol?: string | number | null; function?: string | number | null; interval?: string | number | null }>,
+): boolean {
+  if (!rows.length) return false
+  const hasRichRows = rows.some((r) => r.function != null && r.interval != null)
+  if (hasRichRows) {
+    const keys = new Set(rows.map(shortlistRowKey))
+    return keys.has(signalListKey(signal))
+  }
+  const symbols = new Set(rows.map((r) => String(r.symbol ?? '')))
+  return symbols.has(signal.symbol)
 }

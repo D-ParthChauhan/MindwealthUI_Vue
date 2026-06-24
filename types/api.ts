@@ -1,3 +1,5 @@
+export type ApiDataSource = 'live' | 'mock' | 'unavailable'
+
 export interface DataUpdatedAt {
   date?: string
   time?: string
@@ -43,6 +45,7 @@ export interface FunctionSidebarItem {
 }
 
 export interface DashboardResponse {
+  data_source?: ApiDataSource
   meta?: ApiMeta
   kpis: DashboardKpis
   top_signals: TopSignal[]
@@ -121,7 +124,96 @@ export interface SignalCountsResponse {
   outstanding: number
   new: number
   shortlisted: number
+  report_date?: string | null
+  outstanding_detail?: SignalCountBucket
+  new_detail?: SignalCountBucket
+  shortlist_detail?: { total: number }
   pages?: Record<string, string>
+}
+
+export interface SignalTierCounts {
+  tA?: number
+  best?: number
+  tierc?: number
+  exit?: number
+}
+
+export interface SignalCountBucket {
+  total: number
+  long: number
+  short: number
+  exited?: number
+  tier_counts?: SignalTierCounts
+}
+
+export interface SignalSurfaceRecord {
+  symbol: string
+  function?: string
+  Function?: string
+  interval?: string
+  direction?: string
+  composite_score?: number
+  window_remaining_pct?: number
+  tier?: string
+  exit_fired?: boolean
+  er?: number
+  er_annualized?: number
+  signal_alpha?: number
+  signal_alpha_annualized?: number
+  mtm_pct?: number
+  days_elapsed?: number
+  avg_hold_days?: number
+  timeliness_score?: number
+  rr_static?: number
+  rr_dynamic?: number
+  fwd_wr?: number
+  cagr_diff?: number
+  asset_class?: string
+  alpha_interpretation?: {
+    type: 'fail' | 'warn' | 'info' | null
+    label: string
+    detail: string
+  } | null
+  conviction_score?: number | null
+  conviction_bq_score?: number | null
+  conviction_fs_class?: string | null
+  [key: string]: unknown
+}
+
+export interface SignalSurfaceResponse {
+  report: string
+  report_date?: string
+  source_file?: string
+  row_count: number
+  records: SignalSurfaceRecord[]
+}
+
+export interface SignalSummaryResponse {
+  report: string
+  report_date?: string
+  total: number
+  long: number
+  short: number
+  exited: number
+  tier_counts: SignalTierCounts
+  function_counts: Record<string, number>
+}
+
+export interface StrategyHealthRow {
+  strategy: string
+  interval: string
+  fwd_wr: number
+  bt_wr: number
+  delta_vs_bt: number
+  trades: number
+  gate_a2b: string
+  status: string
+}
+
+export interface StrategyHealthResponse {
+  report_date?: string
+  source_file?: string
+  strategy_health: StrategyHealthRow[]
 }
 
 export interface PerformanceRow {
@@ -145,9 +237,12 @@ export interface PerformanceResponse {
   meta?: ApiMeta
   rows: PerformanceRow[]
   aggregates?: {
-    avg_win_rate: number
+    avg_win_rate: number | null
+    avg_win_rate_source?: 'api' | 'computed'
+    avg_cagr?: number
     total_trades: number
     avg_sharpe: number
+    function_count?: number
   }
 }
 
@@ -205,6 +300,25 @@ export interface OverwatchAlert {
 
 export type OverwatchAlertType = 'degradation' | 'runic' | 'system'
 
+export interface OverwatchPanelSignalDetail {
+  strategy: string
+  interval: string
+  signal_type: string
+  fwd_wr: number
+  backtest_wr: number
+  gap: number
+  pattern: string
+  above_floor: boolean
+}
+
+export interface OverwatchPanelMacroDetail {
+  combo?: string
+  reason?: string
+  narrative?: string
+  brave_fearful?: string
+  variant: 'ssi' | 'dominant'
+}
+
 export interface OverwatchPanelAlert {
   id: string
   type: OverwatchAlertType
@@ -215,6 +329,8 @@ export interface OverwatchPanelAlert {
   fwd_trend?: number[]
   footer?: string
   created_at: string
+  signal?: OverwatchPanelSignalDetail
+  macro?: OverwatchPanelMacroDetail
 }
 
 export interface OverwatchSystemCheck {
@@ -224,6 +340,7 @@ export interface OverwatchSystemCheck {
 }
 
 export interface OverwatchResponse {
+  data_source?: ApiDataSource
   meta?: ApiMeta
   alerts: OverwatchAlert[]
   count: number
@@ -293,7 +410,7 @@ export interface ShortlistResponse {
   meta?: ApiMeta
   count: number
   report_text: string
-  rows?: Record<string, string>[]
+  rows?: Array<Record<string, string | number | boolean | null>>
 }
 
 export interface MonitoredTrade {
@@ -317,6 +434,115 @@ export interface MonitoredTradesResponse {
   trades: MonitoredTrade[]
 }
 
+export type PortfolioFlagId = 'MULTI-SIG' | 'FD+' | 'FD−' | 'YIELD TRAP' | 'DRAWDOWN'
+
+export interface PortfolioFlag {
+  id: PortfolioFlagId
+  label: string
+}
+
+export interface PortfolioCeilingStep {
+  label: string
+  value: string
+  tone?: 'green' | 'amber' | 'gold' | 'teal' | 'default'
+}
+
+export interface PortfolioCeiling {
+  vix: number | null
+  vix_pct: number | null
+  vix_regime: string | null
+  val_regime: string | null
+  geo_overlay: string | null
+  regime_max_pct: number | null
+  ssi_multiplier: number | null
+  vix_level_mult: number | null
+  spx_trend_mult: number | null
+  hy_credit_mult: number | null
+  final_ceiling_pct: number | null
+  formula_text: string | null
+  note: string | null
+  portfolio_notional: number | null
+  idle_cash_yield_pct: number | null
+  steps: PortfolioCeilingStep[]
+}
+
+export interface PortfolioAllocationRow {
+  ticker: string
+  name: string | null
+  investment_type: string | null
+  function: string
+  interval: string
+  direction: 'Long' | 'Short'
+  bq_score: number | null
+  size_tier: string | null
+  allocation_usd: number | null
+  allocation_pct: number | null
+  flags: PortfolioFlag[]
+  blocked: boolean
+}
+
+export interface PortfolioClusterGroup {
+  id: string
+  label: string
+  budget_usd: number | null
+  budget_pct: number | null
+  deployed_usd: number | null
+  deployed_pct: number | null
+  max_pct: number | null
+  positions: PortfolioAllocationRow[]
+}
+
+export interface PortfolioPnlRow {
+  ticker: string
+  investment_type: string | null
+  function: string
+  interval: string
+  direction: 'Long' | 'Short'
+  entry_price: number | null
+  current_price: number | null
+  shares: number | null
+  market_value: number | null
+  pnl_usd: number | null
+  pnl_pct: number | null
+  bq_score: number | null
+  size_tier: string | null
+  flags: PortfolioFlag[]
+  status: string
+  blocked: boolean
+}
+
+export interface PortfolioConstraintCheck {
+  level: 'ok' | 'warn' | 'bad'
+  title: string
+  body: string
+}
+
+export interface PortfolioComboStripItem {
+  id: string
+  label: string
+  detail: string | null
+}
+
+export interface PortfolioMacroOverride {
+  active: boolean
+  reasons: string[]
+}
+
+export interface PortfolioSummary {
+  deployed_usd: number | null
+  deployed_pct: number | null
+  cash_usd: number | null
+  cash_pct: number | null
+  idle_income_usd: number | null
+  open_position_count: number
+}
+
+export interface PortfolioRiskState {
+  available: boolean
+  message: string
+}
+
+/** @deprecated Legacy flat row — kept for mock fallback compatibility */
 export interface PortfolioPosition {
   cluster: string
   ticker: string
@@ -329,36 +555,31 @@ export interface PortfolioPosition {
 
 export interface PortfolioResponse {
   meta?: ApiMeta
-  regime: {
-    vix: number
-    vix_pct: number
-    regime: string
-    max_deploy: number
-    ssi_multiplier: number
-    credit_adj: number
-    final_ceiling: number
-    cash_pct: number
-  }
-  clusters: Array<{ id: string; pct: number; color: string }>
-  positions: PortfolioPosition[]
-  totals: {
-    deployed: number
-    deployed_pct: number
-    cash: number
-    cash_pct: number
-    idle_cash_yield: number
-  }
+  data_source?: ApiDataSource
+  ceiling: PortfolioCeiling
+  clusters: PortfolioClusterGroup[]
+  pnl_rows: PortfolioPnlRow[]
+  summary: PortfolioSummary
+  constraints: PortfolioConstraintCheck[]
+  active_combos: PortfolioComboStripItem[]
+  macro_override: PortfolioMacroOverride | null
+  risk: PortfolioRiskState
+  scenarios_available: boolean
 }
+
+export type ChatPreset = 'freeform' | 'analyze_asset' | 'signal_insights' | 'breadth_analysis'
 
 export interface ChatRequest {
   message: string
   session_id?: string | null
-  signal_types?: string[]
+  preset?: ChatPreset
+  selected_signal_types?: string[]
+  asset?: string
   assets?: string[]
   from_date?: string
   to_date?: string
   functions?: string[]
-  is_followup?: boolean
+  deep_research_enabled?: boolean
 }
 
 export interface ChatResponse {
@@ -366,6 +587,7 @@ export interface ChatResponse {
   reply: string
   metadata?: Record<string, unknown>
   error?: string
+  data_source?: ApiDataSource
 }
 
 export interface ChatSessionsResponse {
@@ -377,12 +599,28 @@ export interface ChatSessionsResponse {
   }>
 }
 
+export interface ChatHistoryMessage {
+  role: 'user' | 'assistant' | 'system'
+  content: string
+  timestamp?: string
+  metadata?: Record<string, unknown> | null
+}
+
+export interface ChatHistoryResponse {
+  messages: ChatHistoryMessage[]
+  data_source?: ApiDataSource
+}
+
 export interface RunicRegime {
   fed_cycle: string
   curve_regime: string
   geo_overlay: string
   val_regime: string
   liquidity: string
+  fed_cycle_source?: string
+  curve_regime_source?: string
+  val_regime_source?: string
+  liquidity_source?: string
 }
 
 export interface RunicActiveCombo {
@@ -392,6 +630,16 @@ export interface RunicActiveCombo {
   bucket?: string
   status?: string
   mtm_pct?: number
+  episode_start?: string
+  confirmed_legs?: string[]
+  primary_label?: string
+  hit_rate_primary?: number
+  avg_return_primary?: number
+  n_obs_primary?: number
+  secondary_label?: string
+  hit_rate_secondary?: number
+  avg_return_secondary?: number
+  n_obs_secondary?: number
 }
 
 export interface RunicWatchCombo {
@@ -405,9 +653,13 @@ export interface RunicComboStatusRow {
   name: string
   status: string
   direction?: string
+  duration?: string
+  hit_rate_3m?: string
+  avg_return_3m?: string
 }
 
 export interface RunicNightlyResponse {
+  data_source?: ApiDataSource
   date: string
   regime: RunicRegime
   dominant_signal: string
@@ -450,6 +702,10 @@ export interface RunicVariableRow {
   note_color?: string
   row_highlight?: boolean
   vix_bypass?: boolean
+  lag_days?: number | null
+  source_date?: string | null
+  expected_source_date?: string | null
+  stale?: boolean
 }
 
 export interface RunicVariablesResponse {
@@ -516,4 +772,223 @@ export interface RunicCancelTrackerResponse {
     weeks_total: number
     mtm_pct: number
   }
+  combo_c_cancelled?: boolean
+  combo_c_cancel_date?: string
+  combo_f_active?: boolean
+  dominant_signal?: string
+  dominant_reason?: string
+  combo_c_status?: string
+  combo_c_duration?: string
+  combo_f_status?: string
+  combo_f_duration?: string
+  combo_c_active?: boolean
+  probability_model?: {
+    model_cancel_prob: number
+    model_wti_leg_prob: number
+    model_cpi_leg_prob: number
+  }
+  upcoming_releases?: Array<{
+    release_date: string
+    release_type: string
+    consensus?: number
+  }>
+  if_cancelled?: {
+    f_becomes_dominant: boolean
+    e_warning_persists: boolean
+    note: string
+  }
+  cancel_condition?: string
+  d_f_tension?: string
+  progress_pct?: number
+  weeks_remaining?: number
+  hit_rate_primary?: number
+  avg_return_6m?: number
+  ppi_cooling?: boolean
+  cancel_gate_pct?: number
+  current_cpi_print?: {
+    release_date: string
+    actual: number
+    consensus: number
+    surprise_pp?: number
+    not_hot?: boolean
+  }
+}
+
+export interface MacroVariableFreshness {
+  variable: string
+  source_date?: string | null
+  lag_days?: number | null
+  expected_source_date?: string | null
+  source_note?: string | null
+  tier?: string
+  stale?: boolean
+}
+
+export interface MacroDataFreshnessResponse {
+  data_source?: ApiDataSource
+  date: string
+  cftc_status: string
+  pending_cpi_release: boolean
+  any_stale_after_refresh?: boolean
+  variables_dashboard: MacroVariableFreshness[]
+}
+
+export interface MacroSsiInput {
+  raw: number
+  vote: boolean | null
+  signal: string | null
+  pctile: number | null
+}
+
+export interface MacroSsiSummaryResponse {
+  data_source?: ApiDataSource
+  date: string
+  ssi_level: number
+  ssi_percentile_5y?: number | null
+  ssi_multiplier: number
+  layer2_status: string
+  layer2_confirmed_count: number
+  layer2_required: number
+  posture: string
+  long_signal_active: boolean
+  short_signal_active: boolean
+  inputs: Record<string, MacroSsiInput>
+}
+
+export interface MacroSsiMultiplierResponse {
+  data_source?: ApiDataSource
+  date: string
+  ssi_multiplier: number
+  ssi_level: number
+  layer2_status: string
+  layer2_confirmed_count: number
+  long_size_mult: number
+  short_size_mult: number
+  long_active: boolean
+  short_active: boolean
+  long_entry_threshold: number
+  short_entry_threshold: number
+}
+
+export interface MacroOverviewKpisResponse {
+  data_source?: ApiDataSource
+  date: string
+  dominant_signal: {
+    combo: string
+    brave_fearful_display?: string
+    hit_rate?: number | null
+    avg_return?: number | null
+  }
+  combo_c_duration: {
+    combo: string
+    duration_weeks?: number | null
+    duration_bucket?: string | null
+    active: boolean
+  }
+  combo_f_window: {
+    combo: string
+    weeks_elapsed?: number | null
+    active: boolean
+    mtm_pct?: number | null
+  }
+  cape: {
+    variable: string
+    current?: number | null
+    tier?: string
+    combo_e_status?: string
+  }
+  wti_4wk: {
+    variable: string
+    current?: number | null
+    tier?: string
+    cancel_week?: number | null
+  }
+}
+
+export interface MacroRegimeResponse {
+  data_source?: ApiDataSource
+  date: string
+  regime: RunicRegime
+  brave_fearful: string
+  brave_fearful_display: string
+  dominant_signal: string
+  dominant_reason: string
+  narrative: string
+  system_recommendation: string
+  vix_bypass: boolean
+  ssi_layer2_status?: string
+  ssi_multiplier?: number
+  regime_grid?: Array<[string, string]>
+}
+
+export interface MacroNamedCombo {
+  combo: string
+  name: string
+  direction: string
+  horizon: string
+  legs_required: number
+  total_legs: number
+  variables: string[]
+  description: string
+  status: string
+  is_active: boolean
+  is_watch: boolean
+  duration_weeks?: number | null
+  duration_bucket?: string | null
+  confirmed_legs?: string[] | null
+  episode_start?: string | null
+  hit_rate_primary?: number | null
+  avg_return_primary?: number | null
+  combo_status_row?: RunicComboStatusRow | null
+}
+
+export interface MacroCombosResponse {
+  data_source?: ApiDataSource
+  date: string
+  active_count: number
+  watch_count: number
+  combos: MacroNamedCombo[]
+}
+
+export interface MacroNarrativeResponse {
+  data_source?: ApiDataSource
+  date: string
+  narrative: string
+  system_recommendation: string
+  brave_fearful_display: string
+  dominant_signal: string
+  dominant_reason: string
+  regime: RunicRegime
+  cftc_status: string
+}
+
+export interface MacroStatusResponse {
+  data_source?: ApiDataSource
+  date: string
+  dominant_signal: string
+  brave_fearful: string
+  brave_fearful_display: string
+  active_combos: string[]
+  watch_combos: string[]
+  cftc_status: string
+  vix_bypass: boolean
+  combo_c_cancel_week: number
+  combo_c_cancelled: boolean
+  pending_cpi_release: boolean
+}
+
+export interface MacroPersistenceResponse {
+  data_source?: ApiDataSource
+  date: string
+  persistence_signals: Array<{
+    signal_type: string
+    weeks?: number
+    description: string
+  }>
+  generic_combo_watch: Array<{
+    vars: string[]
+    status: string
+    gate: string
+  }>
+  source_freshness?: { last_audit?: string }
 }

@@ -1,167 +1,295 @@
 <template>
   <div>
-    <div class="kr k5">
-      <KpiCard
-        v-for="kpi in kpis"
-        :key="kpi.label"
-        :label="kpi.label"
-        :value="kpi.value"
-        :delta="kpi.delta"
-        :accent="kpi.accent"
-        :delta-class="kpi.deltaClass"
-        :class="kpi.valueClass"
-      />
+    <div v-if="!hasOverview" class="runic-unavailable">
+      <div class="runic-card">
+        <div class="runic-card-hd"><div class="runic-card-title">Runic Macro Overview</div></div>
+        <div class="runic-body" style="padding:14px;color:var(--t2)">{{ UNAVAILABLE_FETCH }}</div>
+      </div>
     </div>
 
-    <div class="runic-two-col">
-      <div class="runic-card">
-        <div class="runic-card-hd"><div class="runic-card-title">Active Combos</div></div>
-        <div style="padding:10px 14px">
-          <div class="runic-combo-block">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:600;color:var(--red)">C · Stagflation / Energy Shock</span>
-              <span class="runic-badge b-act">MEDIUM WK {{ comboCWk }}</span>
-            </div>
-            <div class="runic-body">
-              WTI fired ~Mar 10 (Iran, +50% peak $117). Now $91 → 4wk Δ = {{ wtiPct }}%.<br>
-              WTI cancel leg: {{ wtiPct }}% 4wk Δ — below +5% gate. Potential wk 1 of 4 if confirmed Fri close.<br>
-              CPI Apr 10: 0.2% vs 0.3% → not hot ✓. Next CPI: Jun 11.<br>
-              <span style="color:var(--amber)">CANCEL: 4 consecutive Fri both legs clear. Counter at {{ cancelFri }}/4.</span>
-            </div>
-            <div style="margin-top:6px">
-              <div class="runic-body" style="margin-bottom:3px">CANCEL PROGRESS · {{ cancelFri }} of 4 Fridays</div>
-              <div class="runic-cancel-dots">
-                <div
-                  v-for="i in 4"
-                  :key="i"
-                  :class="{ filled: i <= cancelFri, pending: i === cancelFri + 1 && cancelFri < 4 }"
-                />
+    <template v-else>
+      <MacroRegimePills style="margin-bottom:12px" />
+
+      <div v-if="braveFearfulDisplay" class="runic-card" style="margin-bottom:12px">
+        <div class="runic-body" style="padding:10px 14px;color:var(--gold)">{{ braveFearfulDisplay }}</div>
+      </div>
+
+      <MacroSsiPanel />
+
+      <div class="kr k5">
+        <KpiCard
+          v-for="kpi in kpis"
+          :key="kpi.label"
+          :label="kpi.label"
+          :value="kpi.value"
+          :delta="kpi.delta"
+          :accent="kpi.accent"
+          :delta-class="kpi.deltaClass"
+          :class="kpi.valueClass"
+        />
+      </div>
+
+      <div class="runic-three-col">
+        <div class="runic-card">
+          <div class="runic-card-hd"><div class="runic-card-title">Active Combos</div></div>
+          <div style="padding:10px 14px">
+            <div v-if="!activeCombos.length" class="runic-body" style="color:var(--t2)">—</div>
+            <div v-for="combo in activeCombos" :key="combo.combo" class="runic-combo-block">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:11px;font-weight:600;color:var(--gold)">
+                  Combo {{ combo.combo }} · {{ combo.name }}
+                </span>
+                <span v-if="combo.duration_weeks != null" class="runic-badge b-act">
+                  WK {{ combo.duration_weeks }}
+                </span>
               </div>
-              <div class="runic-body" style="margin-top:2px">Fri 3 = CPI week (Jun 11/13)</div>
+              <div class="runic-body">{{ activeComboLine(combo) }}</div>
+              <div v-if="combo.confirmed_legs?.length" class="c-legs" style="margin-top:4px">
+                <span v-for="leg in combo.confirmed_legs" :key="leg" class="leg leg-ok">{{ leg }}</span>
+              </div>
             </div>
           </div>
-          <div class="runic-combo-block">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:600;color:var(--gold)">E · Valuation Extreme</span>
-              <span class="runic-badge b-conf">{{ eBadge }}</span>
-            </div>
-            <div class="runic-body">
-              CAPE 42.0× &gt; 28× gate ✓ (EXTREME tier &gt;32×)<br>
-              NFCI −0.52 &lt; −0.3 gate ✓ (easy = RARE tier)<br>
-              CFTC: PENDING Friday — 2/3 already confirmed.<br>
-              <span style="color:var(--gold)">2 of 3 required → E IS CONFIRMED. Multiplier on D active.</span>
+        </div>
+
+        <div class="runic-card">
+          <div class="runic-card-hd"><div class="runic-card-title">Watch Combos</div></div>
+          <div style="padding:10px 14px">
+            <div v-if="!watchCombos.length" class="runic-body" style="color:var(--t2)">—</div>
+            <div v-for="combo in watchCombos" :key="combo.combo" class="runic-combo-block">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:11px;font-weight:600;color:var(--amber)">
+                  Combo {{ combo.combo }} · {{ combo.name }}
+                </span>
+                <span class="runic-badge b-watch">
+                  WATCH · {{ combo.confirmed_legs?.length ?? 0 }}/{{ combo.total_legs }} LEGS
+                </span>
+              </div>
+              <div class="runic-body">{{ watchComboLine(combo) }}</div>
             </div>
           </div>
-          <div class="runic-combo-block">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:600;color:var(--green)">F · Recovery / Re-entry</span>
-              <span class="runic-badge b-bull">WK {{ fWk }} OF 26</span>
-            </div>
-            <div class="runic-body">
-              Fired Mar 30, 2026 · SPX reclaimed 50WMA +4.2% weekly.<br>
-              SPX currently ~7,550 from fire ~6,200 = <span style="color:var(--green)">+{{ fMtm }}% MTD from fire.</span><br>
-              Active until Sep 22, 2026.<br>
-              <span style="color:var(--green)">D+F TENSION: D tactical vs F strategic. Both valid.</span>
-            </div>
-            <div style="margin-top:5px">
-              <div class="runic-body" style="margin-bottom:2px">F WINDOW · {{ fWk }} of 26 weeks ({{ fPct }}%)</div>
-              <div class="prog-wrap"><div class="prog-fill" style="width:var(--f-pct);background:var(--green)" :style="{ width: `${fPct}%` }" /></div>
+        </div>
+
+        <div class="runic-card">
+          <div class="runic-card-hd"><div class="runic-card-title">Recently Resolved</div></div>
+          <div style="padding:10px 14px">
+            <div v-if="!resolvedCombos.length" class="runic-body" style="color:var(--t2)">—</div>
+            <div v-for="combo in resolvedCombos" :key="combo.combo" class="runic-combo-block">
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+                <span style="font-size:11px;font-weight:600;color:var(--t3)">
+                  Combo {{ combo.combo }} · {{ combo.name }}
+                </span>
+                <span class="runic-badge b-off">{{ combo.status }}</span>
+              </div>
+              <div class="runic-body">{{ combo.duration_bucket ?? combo.status }}</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="runic-card">
-        <div class="runic-card-hd"><div class="runic-card-title">Watch + Resolved</div></div>
-        <div style="padding:10px 14px">
-          <div class="runic-combo-block">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:600;color:var(--amber)">D · FOMO Top / Euphoria</span>
-              <span class="runic-badge b-watch">WATCH · {{ dLegs }}/3 LEGS</span>
-            </div>
-            <div class="runic-body">
-              VXTS 1.25 → EXTREME contango ✓ · VIX 16.7 → below 18 ✓<br>
-              CFTC: est. &gt;75th–85th pctile · PENDING Friday TFF report ⚠<br>
-              <span style="color:var(--amber)">If CFTC &gt;85th confirmed → D FIRES. With E confirmed → D+E = structural top.</span>
-            </div>
-          </div>
-          <div class="runic-combo-block">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:600;color:var(--t4)">B · Maximum Capitulation</span>
-              <span class="runic-badge b-off">RESOLVED · Apr 2025</span>
-            </div>
-            <div class="runic-body">
-              Apr 7, 2025: VIX 52 + HY &gt;400bps + CFTC &lt;15th pctile. All 3 confirmed.<br>
-              7/8 positive 3m = 87.5%. SPX +25% from lows by May 2026.<br>
-              <span style="color:var(--t4)">CRITICAL: If B fires again → Combo F 26wk window cancels immediately.</span>
-            </div>
-          </div>
-          <div class="runic-combo-block">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
-              <span style="font-size:11px;font-weight:600;color:var(--t4)">G · Hidden Stress</span>
-              <span class="runic-badge b-off">RESOLVED · Apr 2025</span>
-            </div>
-            <div class="runic-body">
-              Led Apr 2025 spike by ~3 weeks (G→B cascade). VXTS now 1.25 contango (resolved from backwardation). HY OAS ~305bps — not widening.
-            </div>
-          </div>
+      <div v-if="regimeGrid.length" class="runic-card" style="margin-top:12px">
+        <div class="runic-card-hd"><div class="runic-card-title">Regime Grid</div></div>
+        <div class="brief-pills" style="padding:10px 14px">
+          <span v-for="[dim, val] in regimeGrid" :key="dim" class="rpill">{{ dim }}: {{ val }}</span>
         </div>
       </div>
-    </div>
 
-    <div v-if="showCftcAlert" class="cftc-alert">
-      <div class="nd amber" style="width:6px;height:6px;margin-top:2px;animation:pu 2s infinite;flex-shrink:0" />
-      <div class="runic-body" style="color:var(--amber)">
-        CFTC 3-DAY LAG · TFF published each Friday reflects prior Tuesday's positions.
-        Combos B, D, E, F all require CFTC. Last available (Tue May 26): est. {{ cftcEst }} pctile net long.
-        Flag any Combo D or B fire this week as <span style="color:#fff">PENDING CFTC CONFIRM</span> until Friday report posts (~15:30 ET).
-        Combo D is 2/3 confirmed — one leg pending Friday TFF.
+      <div v-if="regimeNarrative" class="runic-card" style="margin-top:12px">
+        <div class="runic-card-hd"><div class="runic-card-title">Narrative</div></div>
+        <div class="runic-body" style="padding:10px 14px">{{ regimeNarrative }}</div>
       </div>
-    </div>
+
+      <div v-if="systemRecommendation" class="runic-card" style="margin-top:12px">
+        <div class="runic-card-hd"><div class="runic-card-title">System Recommendation</div></div>
+        <div class="runic-body" style="padding:10px 14px;color:var(--gold)">{{ systemRecommendation }}</div>
+      </div>
+
+      <div v-if="showCftcAlert || pendingCpi" class="cftc-alert">
+        <div class="nd amber" style="width:6px;height:6px;margin-top:2px;animation:pu 2s infinite;flex-shrink:0" />
+        <div class="runic-body" style="color:var(--amber)">
+          <template v-if="showCftcAlert">CFTC status: {{ cftcStatus }}.<span v-if="cftcEst"> Est. {{ cftcEst }} pctile net long.</span></template>
+          <template v-if="showCftcAlert && pendingCpi"> · </template>
+          <template v-if="pendingCpi">CPI release pending this week.</template>
+        </div>
+      </div>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { comboEBadge } from '~/utils/runic-regime'
+import type { MacroNamedCombo, MacroOverviewKpisResponse } from '~/types/api'
+import { UNAVAILABLE_FETCH } from '~/constants/unavailable'
+import { formatHitRate, formatReturnPct } from '~/utils/runic-combo-display'
+import { isApiUnavailable } from '~/utils/api-display'
 
-const { nightly } = useRunicMacro()
+const { overviewKpis, regime, combos, narrative, nightly, macroStatus, cancelTracker } = useRunicMacro()
 
-const comboCWk = computed(() => nightly.value?.active_combos.find((c) => c.combo === 'C')?.wk ?? 11)
-const fWk = computed(() => nightly.value?.active_combos.find((c) => c.combo === 'F')?.wk ?? 8)
-const fMtm = computed(() => nightly.value?.active_combos.find((c) => c.combo === 'F')?.mtm_pct ?? 21.8)
-const fPct = computed(() => Math.round((fWk.value / 26) * 100))
-const cancelFri = computed(() => nightly.value?.combo_c_cancel_fri ?? 0)
-const wtiPct = computed(() => nightly.value?.wti_4wk_pct?.toFixed(1) ?? '−17.2')
-const eBadge = computed(() => comboEBadge(nightly.value?.combo_e_status ?? 'CONFIRMED_2_OF_3'))
-const dLegs = computed(() => nightly.value?.watch_combos.find((c) => c.combo === 'D')?.legs_confirmed ?? 2)
-const showCftcAlert = computed(() => nightly.value?.cftc_status === 'PENDING_3DAY_LAG')
-const cftcEst = computed(() => nightly.value?.cftc_est_pctile ?? '75–85th')
+const braveFearfulDisplay = computed(
+  () => regime.value?.brave_fearful_display || macroStatus.value?.brave_fearful_display || '',
+)
+const regimeGrid = computed(() => regime.value?.regime_grid ?? [])
 
-const kpis = computed(() => [
-  {
-    label: 'Dominant Signal',
-    value: `COMBO ${nightly.value?.dominant_signal ?? 'C'}`,
-    delta: `${nightly.value?.dominant_reason ?? 'Stagflation / Energy Shock'} · 3m horizon`,
-    accent: 'r',
-    deltaClass: 'r',
-    valueClass: 'kv-sm',
-  },
-  { label: 'C Duration', value: `Wk ${comboCWk.value}`, delta: 'MEDIUM (6–16 wks)', accent: 'amber', deltaClass: 'amber' },
-  { label: 'Combo F Window', value: `Wk ${fWk.value}`, delta: 'of 26 · +22% from fire date', accent: 'g', deltaClass: 'g' },
-  { label: 'CAPE · Combo E', value: '42.0×', delta: `${eBadge.value} (CAPE+NFCI)`, accent: 'r', deltaClass: 'r' },
-  {
-    label: 'WTI 4-Wk Δ',
-    value: `${wtiPct.value}%`,
-    delta: `Below +5% cancel gate · wk ${cancelFri.value || 1}`,
-    accent: 'b',
-    deltaClass: 'g',
-  },
-])
+const hasOverview = computed(
+  () =>
+    (overviewKpis.value != null && !isApiUnavailable(overviewKpis.value))
+    || (combos.value != null && combos.value.combos.length > 0 && !isApiUnavailable(combos.value))
+    || (nightly.value != null && !isApiUnavailable(nightly.value)),
+)
+
+const activeCombos = computed(() =>
+  combos.value?.combos.filter((c) => c.is_active || c.status.toUpperCase() === 'CONFIRMED') ?? [],
+)
+const watchCombos = computed(() => combos.value?.combos.filter((c) => c.is_watch) ?? [])
+const resolvedCombos = computed(() =>
+  combos.value?.combos
+    .filter((c) => {
+      const s = c.status.toUpperCase()
+      return s === 'CANCELLED' || s === 'RESOLVED'
+    })
+    .slice(0, 2) ?? [],
+)
+
+const regimeNarrative = computed(
+  () => regime.value?.narrative || narrative.value?.narrative || nightly.value?.narrative || '',
+)
+const systemRecommendation = computed(
+  () => regime.value?.system_recommendation || narrative.value?.system_recommendation || '',
+)
+
+const showCftcAlert = computed(() => {
+  const status = macroStatus.value?.cftc_status
+    ?? narrative.value?.cftc_status
+    ?? nightly.value?.cftc_status
+    ?? ''
+  return String(status).includes('PENDING') || String(status).includes('STALE')
+})
+const cftcStatus = computed(() =>
+  macroStatus.value?.cftc_status
+  ?? narrative.value?.cftc_status
+  ?? nightly.value?.cftc_status
+  ?? '—',
+)
+const pendingCpi = computed(() => macroStatus.value?.pending_cpi_release ?? false)
+const cftcEst = computed(() => nightly.value?.cftc_est_pctile)
+
+function activeComboLine(combo: MacroNamedCombo) {
+  const parts: string[] = []
+  if (combo.episode_start) parts.push(`from ${combo.episode_start}`)
+  if (combo.duration_bucket) parts.push(combo.duration_bucket)
+  if (combo.status) parts.push(combo.status)
+  if (combo.hit_rate_primary != null) parts.push(`${formatHitRate(combo.hit_rate_primary)} hit`)
+  if (combo.avg_return_primary != null) parts.push(`${formatReturnPct(combo.avg_return_primary)} avg`)
+  return parts.join(' · ') || '—'
+}
+
+function watchComboLine(combo: MacroNamedCombo) {
+  const pending = combo.variables.filter((v) => !combo.confirmed_legs?.includes(v))
+  return pending.length ? `Pending: ${pending.join(', ')}` : combo.description || '—'
+}
+
+function kpiFromOverview(k: MacroOverviewKpisResponse) {
+  const dom = k.dominant_signal
+  const domHit = dom.hit_rate != null ? `${formatHitRate(dom.hit_rate)} hit` : ''
+  const domRet = dom.avg_return != null ? `${formatReturnPct(dom.avg_return)} avg` : ''
+  const domDelta = [regime.value?.dominant_reason, domHit, domRet].filter(Boolean).join(' · ') || '—'
+
+  const c = k.combo_c_duration
+  const cValue = c.active
+    ? c.duration_bucket ?? 'ACTIVE'
+    : c.duration_weeks != null
+      ? `wk ${c.duration_weeks}`
+      : 'INACTIVE'
+  const cDelta =
+    c.duration_weeks != null && c.duration_bucket
+      ? `wk ${c.duration_weeks} · ${c.duration_bucket}`
+      : c.active ? 'Active' : 'Inactive'
+
+  const f = k.combo_f_window
+  const fDeltaParts: string[] = []
+  if (f.weeks_elapsed != null) fDeltaParts.push(`of 26`)
+  if (f.mtm_pct != null) fDeltaParts.push(`${formatReturnPct(f.mtm_pct)} MTM`)
+  else if (regime.value?.dominant_reason?.includes('6M')) {
+    const m = regime.value.dominant_reason.match(/(\d+)%\s*6M/)
+    if (m) fDeltaParts.push(`${m[1]}% 6M hit rate`)
+  }
+
+  const cape = k.cape
+  const capeValue = cape.current != null ? `${cape.current.toFixed(2)}×` : '—'
+  const capeDelta = cape.combo_e_status ?? cape.tier ?? '—'
+
+  const wti = k.wti_4wk
+  const wtiValue = wti.current != null ? `${wti.current.toFixed(1)}%` : '—'
+  const wtiDelta =
+    macroStatus.value?.combo_c_cancel_week != null
+      ? `Cancel Fridays · ${macroStatus.value.combo_c_cancel_week}/4`
+      : wti.cancel_week != null
+        ? `Cancel Fridays · ${wti.cancel_week}/4`
+        : cancelTracker.value
+          ? `Cancel Fridays · ${cancelTracker.value.combo_c_cancel_fri}/4`
+          : wti.tier ?? '—'
+
+  return [
+    {
+      label: 'Dominant Signal',
+      value: dom.combo ? `COMBO ${dom.combo}` : '—',
+      delta: domDelta,
+      accent: 'r',
+      deltaClass: 'r',
+      valueClass: 'kv-sm',
+    },
+    {
+      label: 'Combo C',
+      value: cValue,
+      delta: cDelta,
+      accent: 'amber',
+      deltaClass: 'amber',
+    },
+    {
+      label: 'Combo F Window',
+      value: f.weeks_elapsed != null ? `Wk ${f.weeks_elapsed}` : '—',
+      delta: fDeltaParts.join(' · ') || '—',
+      accent: 'g',
+      deltaClass: 'g',
+    },
+    {
+      label: 'Combo E · CAPE',
+      value: capeValue,
+      delta: capeDelta,
+      accent: 'r',
+      deltaClass: 'r',
+    },
+    {
+      label: 'WTI 4-Wk Δ',
+      value: wtiValue,
+      delta: wtiDelta,
+      accent: 'b',
+      deltaClass: 'g',
+    },
+  ]
+}
+
+const kpis = computed(() => {
+  const k = overviewKpis.value
+  if (k && !isApiUnavailable(k)) return kpiFromOverview(k)
+  return []
+})
 </script>
 
 <style scoped>
 .kv-sm :deep(.kv) {
   font-size: 14px;
   padding-top: 4px;
+}
+.runic-unavailable {
+  padding: 4px 0;
+}
+.runic-three-col {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+@media (max-width: 1100px) {
+  .runic-three-col {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

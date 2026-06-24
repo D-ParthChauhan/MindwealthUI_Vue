@@ -1,10 +1,53 @@
 import type { Signal, TopSignal } from '~/types/api'
 import { abbreviateFunction, abbreviateInterval, signalKey } from '~/utils/signal-detail'
 
-export function deriveSignalStatus(s: Signal): 'active' | 'degraded' {
-  if (s.status) return s.status
-  if (s.forward_wr != null && s.win_rate && s.forward_wr < s.win_rate - 10) return 'degraded'
-  return 'active'
+export type SignalHealthStatus = 'active' | 'degraded'
+
+/** Read FWD health status from backend CSV / enriched fields only — never derived from WR gap. */
+export function parseSignalStatusFromRaw(
+  raw: Record<string, unknown>,
+): SignalHealthStatus | undefined {
+  const candidates = [
+    raw.status,
+    raw.signal_status,
+    raw.fwd_status,
+    raw.fwd_degraded,
+    raw.fwd_degrading,
+    raw['Signal Status'],
+    raw['FWD Status'],
+    raw['FWD Degraded'],
+    raw['FWD Degrading'],
+  ]
+
+  for (const value of candidates) {
+    if (value == null || value === '' || value === 'No Information') continue
+    if (typeof value === 'boolean') return value ? 'degraded' : 'active'
+    const text = String(value).toLowerCase().trim()
+    if (
+      text === 'degraded' ||
+      text === 'fwd degraded' ||
+      text === 'fwd_degraded' ||
+      text === 'fwd degrading' ||
+      text === 'fwd_degrading' ||
+      text === 'degrading'
+    ) {
+      return 'degraded'
+    }
+    if (text === 'active' || text === 'healthy' || text === 'ok') return 'active'
+    if (text === 'true' || text === 'yes' || text === '1') return 'degraded'
+    if (text === 'false' || text === 'no' || text === '0') return 'active'
+  }
+
+  return undefined
+}
+
+export function deriveSignalStatus(s: Signal): SignalHealthStatus | null {
+  if (s.status === 'active' || s.status === 'degraded') return s.status
+  if (s.raw_fields) {
+    const fromRaw = parseSignalStatusFromRaw(s.raw_fields)
+    if (fromRaw) return fromRaw
+  }
+  return null
 }
 
 export function sentimentDisplay(spread: number | null): string {
@@ -57,8 +100,18 @@ export function mapSignalRow(s: Signal) {
     date: formatSignalDate(s.signal_date),
     tag: sentiment,
     tagClass: sentimentTagClass(sentiment),
-    status: status === 'active' ? '✓ active' : '⚠ degraded FWD',
-    statusColor: status === 'active' ? 'var(--green)' : 'var(--gold)',
+    status:
+      status === 'degraded'
+        ? '⚠ degraded FWD'
+        : status === 'active'
+          ? '✓ active'
+          : '—',
+    statusColor:
+      status === 'degraded'
+        ? 'var(--gold)'
+        : status === 'active'
+          ? 'var(--green)'
+          : 'var(--t3)',
     fwdDegraded: status === 'degraded',
     functionFilter: s.function.toUpperCase(),
   }

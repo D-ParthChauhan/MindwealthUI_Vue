@@ -1,9 +1,11 @@
 import type {
+  MacroCombosResponse,
   RunicAnalogResponse,
   RunicCancelTrackerResponse,
   RunicNightlyResponse,
   RunicVariablesResponse,
 } from '~/types/api'
+import { macroComboToStatusRow } from './runic-mappers'
 
 export function getMockRunicNightly(): RunicNightlyResponse {
   return {
@@ -127,5 +129,57 @@ export function getMockRunicCancelTracker(): RunicCancelTrackerResponse {
       weeks_total: 26,
       mtm_pct: 21.8,
     },
+  }
+}
+
+export function getMockMacroCombos(): MacroCombosResponse {
+  const nightly = getMockRunicNightly()
+  const rows = [
+    { combo: 'A', name: 'Global Liquidity / FCI Regime', status: 'INACTIVE', direction: 'BRAVE OR FEARFUL' },
+    { combo: 'B', name: 'Capitulation / Full Fear', status: 'INACTIVE', direction: 'BULLISH' },
+    { combo: 'C', name: 'Stagflation / Energy Shock', status: 'ACTIVE', direction: 'BEARISH', duration_weeks: 11, duration_bucket: 'MEDIUM', is_active: true },
+    { combo: 'D', name: 'FOMO Top / Complacency', status: 'WATCH', direction: 'BEARISH', is_watch: true },
+    { combo: 'E', name: 'Valuation Extreme', status: 'CONFIRMED', direction: 'BEARISH', is_active: true },
+    { combo: 'F', name: 'Recovery Signal', status: 'ACTIVE', direction: 'BULLISH', duration_weeks: 8, is_active: true },
+    { combo: 'G', name: 'Hidden Stress', status: 'INACTIVE', direction: 'BEARISH' },
+  ]
+  return {
+    date: nightly.date,
+    active_count: 3,
+    watch_count: 1,
+    combos: rows.map((r) => ({
+      combo: r.combo,
+      name: r.name,
+      direction: r.direction,
+      horizon: '—',
+      legs_required: 3,
+      total_legs: 3,
+      variables: [],
+      description: '—',
+      status: r.status,
+      is_active: Boolean(r.is_active),
+      is_watch: Boolean(r.is_watch),
+      duration_weeks: r.duration_weeks ?? null,
+      duration_bucket: r.duration_bucket ?? null,
+      confirmed_legs: null,
+      episode_start: null,
+      hit_rate_primary: null,
+      avg_return_primary: null,
+      combo_status_row: macroComboToStatusRow({
+        combo: r.combo,
+        name: r.name,
+        direction: r.direction,
+        horizon: '—',
+        legs_required: 3,
+        total_legs: 3,
+        variables: [],
+        description: '—',
+        status: r.status,
+        is_active: Boolean(r.is_active),
+        is_watch: Boolean(r.is_watch),
+        duration_weeks: r.duration_weeks ?? null,
+        duration_bucket: r.duration_bucket ?? null,
+      }),
+    })),
   }
 }

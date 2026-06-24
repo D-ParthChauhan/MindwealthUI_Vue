@@ -1,3 +1,5 @@
+import { UNAVAILABLE_COMPUTE, UNAVAILABLE_FETCH } from '~/constants/unavailable'
+import { isApiUnavailable } from '~/utils/api-display'
 import {
   deployStripColor,
   deriveRegimeLabel,
@@ -9,6 +11,8 @@ import {
 } from '~/utils/runic-regime'
 import type {
   DashboardResponse,
+  MacroCombosResponse,
+  MacroStatusResponse,
   OverwatchResponse,
   PortfolioResponse,
   RunicNightlyResponse,
@@ -36,6 +40,8 @@ export type RegimeStripContext = {
   dashboard?: DashboardResponse | null
   sentiment?: SentimentResponse | null
   nightly?: RunicNightlyResponse | null
+  macroStatus?: MacroStatusResponse | null
+  macroCombos?: MacroCombosResponse | null
   conviction?: ConvictionResponse | null
   portfolio?: PortfolioResponse | null
   overwatch?: OverwatchResponse | null
@@ -53,6 +59,65 @@ function chipParts(
     .map((p) => `<span class="rsv" style="color:${p.color}">${p.text}</span>`)
     .join(' · ')
   return `${label} ${value}`
+}
+
+function shortPosturePart(display: string, part: 'tactical' | 'strategic'): string {
+  const segments = display.split('/').map((s) => s.trim()).filter(Boolean)
+  const raw = part === 'tactical' ? segments[0] : segments[1]
+  if (!raw) return ''
+  return raw
+    .replace(/^TACTICAL /i, 'TAC ')
+    .replace(/^STRATEGIC /i, 'STR ')
+}
+
+function shortCftcStatus(status: string): string {
+  return status
+    .replace('PENDING_3DAY_LAG', 'PENDING 3D')
+    .replace('PENDING_CFTC_CONFIRM', 'PENDING CFTC')
+    .replace(/_/g, ' ')
+}
+
+function formatStripWti(pct: number): string {
+  const rounded = Math.round(pct * 10) / 10
+  return `${rounded > 0 ? '+' : ''}${rounded}%`
+}
+
+function formatMacroActiveChip(
+  ids: string[],
+  combos: MacroCombosResponse['combos'],
+): string {
+  return ids
+    .map((id) => {
+      const c = combos.find((x) => x.combo === id)
+      if (!c) return id
+      const wk = c.duration_weeks != null ? ` wk${c.duration_weeks}` : ''
+      const tag =
+        c.status.toUpperCase() === 'CONFIRMED'
+          ? ' CONF'
+          : c.duration_bucket
+            ? ` ${c.duration_bucket.slice(0, 3)}`
+            : ''
+      return `${id}${wk}${tag}`
+    })
+    .join(' · ')
+}
+
+function formatMacroWatchChip(
+  ids: string[],
+  combos: MacroCombosResponse['combos'],
+  nightly?: RunicNightlyResponse | null,
+): string {
+  return ids
+    .map((id) => {
+      const c = combos.find((x) => x.combo === id)
+      const total = c?.total_legs ?? 3
+      const confirmed =
+        c?.confirmed_legs?.length
+        ?? nightly?.watch_combos?.find((w) => w.combo === id)?.legs_confirmed
+        ?? 0
+      return `${id} ${confirmed}/${total}`
+    })
+    .join(' · ')
 }
 
 function sentimentPair(
@@ -138,47 +203,73 @@ export function buildRegimeStrip(path: string, ctx: RegimeStripContext): RegimeS
     }
 
     case '/macro': {
+      const status = ctx.macroStatus
+      const combos = ctx.macroCombos?.combos ?? []
       const n = ctx.nightly
       const items: string[] = []
-      if (n?.dominant_signal && n.dominant_signal !== '—') {
-        items.push(chip('DOMINANT', n.dominant_signal, 'var(--gold)'))
+      const posture = status?.brave_fearful_display ?? n?.brave_fearful_display ?? ''
+
+      const dominant = status?.dominant_signal ?? n?.dominant_signal
+      if (dominant && dominant !== '—') {
+        items.push(chip('DOMINANT', dominant, 'var(--gold)'))
       }
-      if (n?.dominant_reason) {
-        items.push(chip('REASON', n.dominant_reason, 'var(--amber)'))
+
+      const activeIds = status?.active_combos?.length
+        ? status.active_combos
+        : n?.active_combos?.map((c) => c.combo) ?? []
+      if (activeIds.length) {
+        items.push(chip('ACTIVE', formatMacroActiveChip(activeIds, combos), 'var(--green)'))
       }
-      for (const c of n?.active_combos ?? []) {
-        const wk = c.wk != null ? `wk ${c.wk}` : ''
-        const bucket = c.bucket ? ` · ${c.bucket}` : ''
-        const status = c.status ? ` · ${c.status}` : ''
-        items.push(chip(
-          `COMBO ${c.combo}`,
-          `${wk}${bucket}${status}`.trim() || 'active',
-          'var(--green)',
-        ))
+
+      const watchIds = status?.watch_combos?.length
+        ? status.watch_combos
+        : n?.watch_combos?.map((w) => w.combo) ?? []
+      if (watchIds.length) {
+        items.push(chip('WATCH', formatMacroWatchChip(watchIds, combos, n), 'var(--amber)'))
       }
-      for (const w of n?.watch_combos ?? []) {
-        items.push(
-          chip(
-            `WATCH ${w.combo}`,
-            `${w.legs_confirmed}/3 legs · ${w.pending}`,
-            'var(--amber)',
-          ),
-        )
+
+      const cancelWeek = status?.combo_c_cancel_week ?? n?.combo_c_cancel_fri
+      if (cancelWeek != null || status?.combo_c_cancelled) {
+        const label = status?.combo_c_cancelled ? 'CANCELLED' : `${cancelWeek}/4`
+        items.push(chip('C CANCEL', label, status?.combo_c_cancelled ? 'var(--t3)' : 'var(--amber)'))
       }
+
+      const cftc = status?.cftc_status ?? n?.cftc_status
+      if (cftc) {
+        const short = shortCftcStatus(String(cftc))
+        const color = short.includes('PENDING') || short.includes('STALE')
+          ? 'var(--amber)'
+          : 'var(--green)'
+        items.push(chip('CFTC', short, color))
+      }
+
+      if (status?.pending_cpi_release) {
+        items.push(chip('CPI', 'PENDING', 'var(--amber)'))
+      }
+      if (status?.vix_bypass || n?.vix_bypass_active) {
+        items.push(chip('VIX', 'BYPASS', 'var(--amber)'))
+      }
+
       if (n && Number.isFinite(n.wti_4wk_pct)) {
-        const wti = `${n.wti_4wk_pct > 0 ? '+' : ''}${n.wti_4wk_pct}%`
+        const wti = formatStripWti(n.wti_4wk_pct)
         items.push(chip('WTI 4W', wti, n.wti_4wk_pct >= 0 ? 'var(--green)' : 'var(--red)'))
       }
-      if (n && n.combo_c_cancel_fri != null) {
-        items.push(chip('C CANCEL FRI', `${n.combo_c_cancel_fri}/4`, 'var(--amber)'))
-      }
-      const headline = n ? deriveRegimeLabel(n) : 'RUNIC MACRO'
-      const bearish = headline.toLowerCase().includes('bear') || headline.toLowerCase().includes('fearful')
+
+      const tactical = posture ? shortPosturePart(posture, 'tactical') : ''
+      const strategic = posture ? shortPosturePart(posture, 'strategic') : ''
+      const headline = tactical || (n ? deriveRegimeLabel(n) : 'RUNIC MACRO')
+      const bearish = headline.toLowerCase().includes('fear') || headline.toLowerCase().includes('tight')
+      const right = strategic
+        ? `<span class="rsv" style="color:var(--gold)">${strategic}</span>`
+        : n
+          ? formatRegimeStripRight(n)
+          : undefined
+
       return {
-        dotClass: bearish ? 'er' : n?.watch_combos?.length ? 'warn' : 'ok',
+        dotClass: bearish ? 'er' : watchIds.length ? 'warn' : 'ok',
         headline,
         items,
-        right: n ? formatRegimeStripRight(n) : undefined,
+        right,
       }
     }
 
@@ -214,7 +305,11 @@ export function buildRegimeStrip(path: string, ctx: RegimeStripContext): RegimeS
       const right = c
         ? chip(
             'SOURCE',
-            `${c.storeLive ? 'conviction_store live' : 'mock data'} · as of ${c.asOf}`,
+            c.storeLive
+              ? `conviction_store live · as of ${c.asOf}`
+              : isApiUnavailable(c)
+                ? `${UNAVAILABLE_FETCH} · as of ${c.asOf}`
+                : `as of ${c.asOf}`,
             c.storeLive ? 'var(--green)' : 'var(--t3)',
           )
         : undefined
@@ -228,29 +323,32 @@ export function buildRegimeStrip(path: string, ctx: RegimeStripContext): RegimeS
     }
 
     case '/portfolio': {
-      const r = ctx.portfolio?.regime
-      if (!r) {
+      const c = ctx.portfolio?.ceiling
+      if (!c) {
         return { dotClass: 'ok', headline: 'PORTFOLIO SIZER', items: [] }
       }
+      const items: string[] = []
+      if (c.vix != null) items.push(chip('VIX', String(c.vix), vixStripColor(c.vix, c.vix_regime ?? '')))
+      if (c.ssi_multiplier != null) {
+        items.push(chip(
+          'SSI MULT',
+          `${c.ssi_multiplier.toFixed(2)}×`,
+          c.ssi_multiplier >= 1 ? 'var(--green)' : 'var(--amber)',
+        ))
+      }
+      if (c.final_ceiling_pct != null) {
+        items.push(chip('CEILING', `${c.final_ceiling_pct}%`, 'var(--gold)'))
+      } else {
+        items.push(chip('CEILING', UNAVAILABLE_COMPUTE, 'var(--t3)'))
+      }
+      if (c.val_regime) items.push(chip('VAL REGIME', c.val_regime, 'var(--amber)'))
       return {
-        dotClass: 'ok',
-        headline: `VIX REGIME: ${r.regime}`,
-        items: [
-          chip('MAX DEPLOY', `${r.max_deploy}%`, 'var(--green)'),
-          chip(
-            'SSI MULT',
-            `${r.ssi_multiplier.toFixed(2)}×`,
-            r.ssi_multiplier >= 1 ? 'var(--green)' : 'var(--amber)',
-          ),
-          chip(
-            'CREDIT ADJ',
-            `${r.credit_adj.toFixed(2)}×`,
-            r.credit_adj >= 1 ? 'var(--green)' : 'var(--amber)',
-          ),
-          chip('CEILING', `${r.final_ceiling}%`, 'var(--gold)'),
-          chip('CASH', `${r.cash_pct}%`, 'var(--teal)'),
-          chip('VIX', String(r.vix), vixStripColor(r.vix, r.regime)),
-        ],
+        dotClass: ctx.portfolio?.macro_override?.active ? 'warn' : 'ok',
+        headline: c.vix_regime ? `VIX REGIME: ${c.vix_regime}` : 'PORTFOLIO SIZER',
+        items,
+        right: c.formula_text
+          ? `<span class="rsv" style="color:var(--t3)">${c.formula_text}</span>`
+          : undefined,
       }
     }
 
@@ -291,6 +389,19 @@ export function buildTopbarStatus(
       if (ctx.counts) return { dot: 'g', label: `${ctx.counts.outstanding} ACTIVE` }
       return undefined
     case '/macro': {
+      const status = ctx.macroStatus
+      const combos = ctx.macroCombos?.combos ?? []
+      if (status?.active_combos?.length) {
+        const label = status.active_combos
+          .map((id) => {
+            const c = combos.find((x) => x.combo === id)
+            return c?.duration_weeks != null ? `${id} WK${c.duration_weeks}` : id
+          })
+          .join(' · ')
+          .toUpperCase()
+        const dot = status.watch_combos?.length || status.vix_bypass ? 'gold' : 'g'
+        return { dot, label }
+      }
       const n = ctx.nightly
       if (!n?.active_combos?.length) return { dot: 'gold', label: 'RUNIC MACRO' }
       const label = n.active_combos
@@ -305,8 +416,8 @@ export function buildTopbarStatus(
     case '/conviction':
       return { dot: 'p', label: 'CONVICTION ENGINE' }
     case '/portfolio':
-      if (ctx.portfolio?.regime) {
-        return { dot: 'g', label: `VIX ${ctx.portfolio.regime.regime}` }
+      if (ctx.portfolio?.ceiling?.vix_regime) {
+        return { dot: 'g', label: `VIX ${ctx.portfolio.ceiling.vix_regime}` }
       }
       return { dot: 'g', label: 'PORTFOLIO SIZER' }
     case '/overwatch': {
@@ -343,17 +454,27 @@ export function buildAgentItems(path: string, ctx: RegimeStripContext): AgentBar
       }
       break
 
-    case '/macro':
-      for (const c of ctx.nightly?.active_combos?.slice(0, 2) ?? []) {
+    case '/macro': {
+      const status = ctx.macroStatus
+      const combos = ctx.macroCombos?.combos ?? []
+      const activeIds = status?.active_combos?.slice(0, 2)
+        ?? ctx.nightly?.active_combos?.slice(0, 2).map((c) => c.combo)
+        ?? []
+      for (const id of activeIds) {
+        const c = combos.find((x) => x.combo === id)
+        const nightlyC = ctx.nightly?.active_combos?.find((x) => x.combo === id)
+        const wk = c?.duration_weeks ?? nightlyC?.wk
         items.push({
-          dot: c.status?.toLowerCase().includes('confirm') ? 'on' : 'wa',
-          label: `COMBO ${c.combo}${c.wk != null ? ` · wk ${c.wk}` : ''}`.toUpperCase(),
+          dot: c?.status?.toLowerCase().includes('confirm') ? 'on' : 'wa',
+          label: `COMBO ${id}${wk != null ? ` · wk ${wk}` : ''}`.toUpperCase(),
         })
       }
-      if (ctx.nightly?.dominant_signal && ctx.nightly.dominant_signal !== '—') {
-        items.push({ dot: 'wa', label: ctx.nightly.dominant_signal, right: true })
+      const dominant = status?.dominant_signal ?? ctx.nightly?.dominant_signal
+      if (dominant && dominant !== '—') {
+        items.push({ dot: 'wa', label: dominant, right: true })
       }
       break
+    }
 
     case '/sentiment':
       if (ctx.sentiment?.composite.score) {
@@ -378,14 +499,16 @@ export function buildAgentItems(path: string, ctx: RegimeStripContext): AgentBar
       break
 
     case '/portfolio':
-      if (ctx.portfolio?.regime) {
+      if (ctx.portfolio?.summary.open_position_count) {
         items.push({
           dot: 'on',
-          label: `CEILING · ${ctx.portfolio.regime.final_ceiling}%`,
+          label: `OPEN · ${ctx.portfolio.summary.open_position_count}`,
         })
+      }
+      if (ctx.portfolio?.ceiling?.final_ceiling_pct != null) {
         items.push({
           dot: 'on',
-          label: `CASH · ${ctx.portfolio.regime.cash_pct}%`,
+          label: `CEILING · ${ctx.portfolio.ceiling.final_ceiling_pct}%`,
           right: true,
         })
       }

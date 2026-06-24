@@ -1,4 +1,4 @@
-import { buildWinRateChart } from '~/utils/win-rate-chart'
+import { getUnavailablePortfolio } from './unavailable-data'
 import { signalToRawFields } from './signal-parsers'
 import type {
   ApiMeta,
@@ -596,41 +596,5 @@ export function getMockMonitoredTrades(): MonitoredTradesResponse {
 }
 
 export function getMockPortfolio(): PortfolioResponse {
-  return {
-    meta: mockMeta,
-    regime: {
-      vix: 16.4,
-      vix_pct: 48,
-      regime: 'NORMAL',
-      max_deploy: 80,
-      ssi_multiplier: 1.0,
-      credit_adj: 0.9,
-      final_ceiling: 72,
-      cash_pct: 28,
-    },
-    clusters: [
-      { id: 'global_risk_on', pct: 18, color: 'var(--green)' },
-      { id: 'semis', pct: 12, color: 'var(--blue)' },
-      { id: 'us_tech', pct: 12, color: '#e67e22' },
-      { id: 'financials', pct: 12, color: 'var(--teal)' },
-      { id: 'commodities', pct: 10, color: '#9b59b6' },
-      { id: 'canada_def', pct: 10, color: '#1abc9c' },
-      { id: 'nz_local+india+other', pct: 18, color: '#e74c3c' },
-    ],
-    positions: [
-      { cluster: 'global_risk_on', ticker: 'SPY', direction: 'Long', meta: 'Fractal Track · Monthly · WR 94.3%', dollar: 32400, pct: 6.5 },
-      { cluster: 'semiconductors', ticker: 'ASML', direction: 'Long', meta: 'TrendPulse · Weekly · WR 91.2%', dollar: 34800, pct: 7.0 },
-      { cluster: 'financials', ticker: 'JPM', direction: 'Long', meta: 'Fractal Track · Monthly · WR 100%', dollar: 22000, pct: 4.4 },
-      { cluster: 'commodities', ticker: 'GDX', direction: 'Long', meta: 'DeltaDrift · Daily · WR 88.0%', dollar: 27500, pct: 5.5 },
-      { cluster: 'canada_def', ticker: 'CNR.TO', direction: 'Long', meta: 'TrendPulse · Daily · WR 88.0%', dollar: 27800, pct: 5.6 },
-      { cluster: 'us_tech', ticker: 'TSLA', direction: 'Short', meta: 'DeltaDrift · Daily · EXCLUDED — forward test degraded', dollar: 0, pct: 0, excluded: true },
-    ],
-    totals: {
-      deployed: 360000,
-      deployed_pct: 72,
-      cash: 140000,
-      cash_pct: 28,
-      idle_cash_yield: 3.5,
-    },
-  }
+  return getUnavailablePortfolio()
 }

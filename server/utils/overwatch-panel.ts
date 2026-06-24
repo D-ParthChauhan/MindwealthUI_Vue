@@ -5,6 +5,7 @@ import type {
   OverwatchResponse,
   OverwatchSystemCheck,
 } from '~/types/api'
+import { UNAVAILABLE_FETCH } from '~/constants/unavailable'
 
 const FLOOR_PCT = 60
 
@@ -46,6 +47,16 @@ export function degradationToPanelAlert(a: OverwatchAlert): OverwatchPanelAlert 
     recommendation,
     fwd_trend: fwdTrend,
     created_at: new Date().toISOString(),
+    signal: {
+      strategy: a.strategy,
+      interval: a.interval,
+      signal_type: a.signal_type,
+      fwd_wr: a.win,
+      backtest_wr: a.backtest,
+      gap: a.gap,
+      pattern,
+      above_floor: aboveFloor,
+    },
   }
 }
 
@@ -58,6 +69,13 @@ export function mockRunicPanelAlert(): OverwatchPanelAlert {
       'QQQ RSI 82.8 + 14.5% above 50DMA: <span class="wa">3/3 negative 1M historically</span>. Tavily confirms elevated tech concentration risk. SSI composite +0.4 — neutral, no long trigger.',
     footer: 'TAVILY ACTIVE · INTERNAL DATA PRIORITY · ONCE PER PAGE VISIT',
     created_at: new Date().toISOString(),
+    macro: {
+      combo: 'QQQ',
+      reason: 'RSI 82.8 · +14.5% above 50DMA',
+      narrative:
+        '3/3 negative 1M historically. Tavily confirms elevated tech concentration risk. SSI composite +0.4 — neutral, no long trigger.',
+      variant: 'ssi',
+    },
   }
 }
 
@@ -79,6 +97,13 @@ export function runicPanelAlertFromNightly(nightly: {
       ? `BRAVE/FEARFUL · ${nightly.brave_fearful.replace(/_/g, ' ')} · LIVE API`
       : 'LIVE · macro/runic/nightly',
     created_at: new Date().toISOString(),
+    macro: {
+      combo,
+      reason,
+      narrative: snippet,
+      brave_fearful: nightly.brave_fearful,
+      variant: 'dominant',
+    },
   }
 }
 
@@ -100,33 +125,38 @@ function csvStatus(ageMins: number | null): OverwatchSystemCheck['status'] {
 export function buildSystemChecks(
   meta?: ApiMeta,
   systemLogs?: OverwatchResponse['system_logs'],
+  options?: { unavailable?: boolean },
 ): OverwatchSystemCheck[] {
+  if (options?.unavailable) {
+    return [{ name: 'Backend', status: 'fail', detail: UNAVAILABLE_FETCH }]
+  }
+
   const usAge = csvAgeMinutes(meta)
   const checks: OverwatchSystemCheck[] = [
     {
       name: 'US CSV pipeline',
       status: csvStatus(usAge),
-      detail: usAge != null ? `${usAge}m ago` : 'timestamp unknown',
+      detail: usAge != null ? `${usAge}m ago` : UNAVAILABLE_FETCH,
     },
     {
       name: 'India CSV pipeline',
-      status: 'ok',
-      detail: 'synced · daily batch',
+      status: 'warn',
+      detail: UNAVAILABLE_FETCH,
     },
     {
       name: 'Claude API',
-      status: 'ok',
-      detail: 'ping ok · <400ms',
+      status: 'warn',
+      detail: UNAVAILABLE_FETCH,
     },
     {
       name: 'Tavily',
-      status: 'ok',
-      detail: 'last search · on demand',
+      status: 'warn',
+      detail: UNAVAILABLE_FETCH,
     },
     {
       name: 'Google Sheets sync',
-      status: 'ok',
-      detail: meta?.data_updated_at?.date ?? '—',
+      status: meta?.data_updated_at?.date ? 'ok' : 'warn',
+      detail: meta?.data_updated_at?.date ?? UNAVAILABLE_FETCH,
     },
   ]
 
@@ -144,19 +174,21 @@ export function buildSystemChecks(
 }
 
 export function buildOverwatchPanelPayload(
-  data: Pick<OverwatchResponse, 'alerts' | 'meta' | 'system_logs'>,
-  options?: { runicAlert?: OverwatchPanelAlert | null; includeMockRunic?: boolean },
+  data: Pick<OverwatchResponse, 'alerts' | 'meta' | 'system_logs' | 'data_source'>,
+  options?: { runicAlert?: OverwatchPanelAlert | null; includeMockRunic?: boolean; unavailable?: boolean },
 ): { panel_alerts: OverwatchPanelAlert[]; system_checks: OverwatchSystemCheck[] } {
   const degradation = data.alerts.map(degradationToPanelAlert)
   let runic: OverwatchPanelAlert[] = []
   if (options?.runicAlert) {
     runic = [options.runicAlert]
-  } else if (options?.includeMockRunic !== false && degradation.length > 0) {
+  } else if (options?.includeMockRunic === true && degradation.length > 0) {
     runic = [mockRunicPanelAlert()]
   }
 
   return {
     panel_alerts: [...degradation, ...runic],
-    system_checks: buildSystemChecks(data.meta, data.system_logs),
+    system_checks: buildSystemChecks(data.meta, data.system_logs, {
+      unavailable: options?.unavailable ?? data.data_source === 'unavailable',
+    }),
   }
 }

@@ -69,3 +69,11 @@ export function fdSizeNote(fd: FdDirection): string {
   if (fd === 'negative') return '−15% within tier'
   return 'no change'
 }
+
+export function parseTaxNoteParts(note: string): Array<{ label: string; total: boolean }> {
+  if (!note.trim()) return []
+  return note.split('·').map((part) => {
+    const label = part.trim()
+    return { label, total: /^total:/i.test(label) }
+  })
+}

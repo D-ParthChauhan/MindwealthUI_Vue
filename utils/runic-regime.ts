@@ -360,7 +360,17 @@ export function deriveRegimeLabel(nightly: RunicNightlyResponse): string {
   return labelParts.length ? labelParts.join(' / ') : 'MACRO REGIME'
 }
 
-export function regimePillSource(label: string): string {
+export function regimePillSource(label: string, regime?: RunicRegime): string {
+  if (regime) {
+    switch (label) {
+      case 'FED CYCLE': return regime.fed_cycle_source ?? 'FRED'
+      case 'YIELD CURVE': return regime.curve_regime_source ?? 'FRED:T10Y2Y'
+      case 'VALUATION': return regime.val_regime_source ?? 'CAPE'
+      case 'LIQUIDITY': return regime.liquidity_source ?? 'FRED:NFCI'
+      case 'GEOPOLITICAL': return 'Claude API'
+      default: return ''
+    }
+  }
   switch (label) {
     case 'YIELD CURVE': return 'FRED:T10Y2Y'
     case 'VALUATION': return 'CAPE'

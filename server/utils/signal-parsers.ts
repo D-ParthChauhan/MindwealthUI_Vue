@@ -1,4 +1,5 @@
 import type { PerformanceRow, Signal, SignalsSummary, TopSignal } from '~/types/api'
+import { parseSignalStatusFromRaw } from '~/utils/signals'
 
 const SYM_COL = 'Symbol, Signal, Signal Date/Price[$]'
 const WIN_COL = 'Win Rate [%], History Tested, Number of Trades'
@@ -72,8 +73,7 @@ export function recordToSignal(rec: Record<string, unknown>): Signal {
   const sharpeRaw = rec['Backtested Strategy Sharpe Ratio']
   const sharpe = sharpeRaw != null && sharpeRaw !== 'No Information' ? Number(sharpeRaw) : 0
 
-  const status =
-    forwardWr != null && win.winRate && forwardWr < win.winRate - 10 ? 'degraded' : 'active'
+  const status = parseSignalStatusFromRaw(rec)
 
   return {
     symbol,
@@ -91,7 +91,7 @@ export function recordToSignal(rec: Record<string, unknown>): Signal {
     confirmation_status: String(rec[INTERVAL_COL] ?? ''),
     exit_status: String(rec['Exit Signal Date/Price[$]'] ?? 'N/A'),
     current_mtm: mtm,
-    status,
+    ...(status ? { status } : {}),
     raw_fields: { ...rec },
   }
 }
@@ -131,18 +131,11 @@ export function buildSignalsSummary(signals: Signal[], shortlisted = 0): Signals
     longs.length > 0
       ? Math.round(longs.reduce((a, s) => a + s.win_rate, 0) / longs.length)
       : 0
-  const degradedShort = shorts.find(
-    (s) => s.forward_wr != null && s.win_rate && s.forward_wr < s.win_rate - 10,
-  )
   return {
     long: longs.length,
     short: shorts.length,
     long_pct: longPct,
-    short_note: degradedShort
-      ? `review ${degradedShort.function}`
-      : shorts.length
-        ? `${shorts.length} active shorts`
-        : 'no shorts',
+    short_note: shorts.length ? `${shorts.length} active shorts` : 'no shorts',
     new_long: longs.length,
     new_short: shorts.length,
     shortlisted,

@@ -1,13 +1,5 @@
 import type { RunicMacroTab } from '~/constants/runic-macro-data'
-
-const COMBO_NAV_MAP: Record<string, string> = {
-  'combo-c': 'C',
-  'combo-d': 'D',
-  'combo-e': 'E',
-  'combo-f': 'F',
-  'combo-b': 'B',
-  'combo-g': 'G',
-}
+import { comboLetterFromNavId } from '~/utils/runic-nav'
 
 export function useRunicMacroPage() {
   const activeTab = useState<RunicMacroTab>('runic-macro-tab', () => 'overview')
@@ -34,9 +26,9 @@ export function useRunicMacroPage() {
   const navActiveId = useState<string>('terminal-nav-id')
 
   watch(navActiveId, (id, prev) => {
-    const letter = COMBO_NAV_MAP[id]
+    const letter = comboLetterFromNavId(id)
     if (!letter) return
-    if (!prev || !COMBO_NAV_MAP[prev] || prev === id) return
+    if (prev === id) return
     jumpToCombo(letter)
   })
 

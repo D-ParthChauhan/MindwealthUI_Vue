@@ -8,29 +8,23 @@
   >
     <div v-if="data" class="scroll cv-scroll">
       <div v-if="data.health.yieldTraps > 0" class="cv-alert-bar">
-        <strong>{{ data.health.yieldTraps }} yield trap active:</strong>
-        {{ data.health.yieldTrapTickers.join(', ') }} — dividend yield exceeds threshold. BUY cancelled regardless of quant signal. Click row to see detail.
+        <strong>{{ data.health.yieldTraps }} yield trap{{ data.health.yieldTraps > 1 ? 's' : '' }} active</strong>
+        <span class="cv-alert-tickers">{{ data.health.yieldTrapTickers.join(', ') }}</span>
+        <span class="cv-alert-msg">Dividend yield exceeds threshold — BUY cancelled regardless of quant signal.</span>
       </div>
 
       <div class="kr k4 cv-health">
-        <div class="kc">
+        <div class="kc cv-health-card">
           <div class="kl">Conviction breakdown</div>
           <div class="cv-breakdown">
-            <div class="cv-bd-row">
-              <span class="cv-bd-label g">MAX (≥+8)</span>
-              <span class="cv-bd-val">{{ data.health.breakdown.max.count }} · {{ data.health.breakdown.max.pct }}%</span>
-            </div>
-            <div class="cv-bd-row">
-              <span class="cv-bd-label g">TACTICAL (≥+5)</span>
-              <span class="cv-bd-val">{{ data.health.breakdown.tactical.count }} · {{ data.health.breakdown.tactical.pct }}%</span>
-            </div>
-            <div class="cv-bd-row">
-              <span class="cv-bd-label a">REDUCED (≥+2)</span>
-              <span class="cv-bd-val">{{ data.health.breakdown.reduced.count }} · {{ data.health.breakdown.reduced.pct }}%</span>
-            </div>
-            <div class="cv-bd-row">
-              <span class="cv-bd-label r">CANCEL (&lt;+2)</span>
-              <span class="cv-bd-val">{{ data.health.breakdown.cancel.count }} · {{ data.health.breakdown.cancel.pct }}%</span>
+            <div v-for="tier in breakdownTiers" :key="tier.key" class="cv-bd-item">
+              <div class="cv-bd-head">
+                <span class="cv-bd-label" :class="tier.cls">{{ tier.label }}</span>
+                <span class="cv-bd-val">{{ tier.count }} · {{ tier.pct }}%</span>
+              </div>
+              <div class="cv-bd-track">
+                <div class="cv-bd-fill" :class="tier.cls" :style="{ width: `${tier.pct}%` }" />
+              </div>
             </div>
           </div>
         </div>
@@ -51,45 +45,53 @@
           :delta-class="avgAccent(data.health.avgConviction)"
         />
 
-        <div class="kc">
-          <div class="kl">Business types ({{ data.health.equityCount }} equities)</div>
+        <div class="kc cv-health-card">
+          <div class="kl">Business types · {{ data.health.equityCount }} equities</div>
           <div class="cv-btype-list">
             <div v-for="bt in data.health.businessTypes" :key="bt.type" class="cv-btype-row">
-              <div class="cv-btype-bar" :style="{ width: `${btypeBarWidth(bt.count)}px`, background: bt.color }" />
-              <span>{{ bt.type }} {{ bt.count }}</span>
+              <span class="cv-btype-name">{{ bt.type }}</span>
+              <div class="cv-btype-track">
+                <div
+                  class="cv-btype-fill"
+                  :style="{ width: `${btypePct(bt.count)}%`, background: bt.color }"
+                />
+              </div>
+              <span class="cv-btype-count">{{ bt.count }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div v-if="isDepthView" class="cv-main-view">
-        <ConvictionStatusChips
-          :signals="data.signals"
-          :selected-id="selectedId"
-          @select="selectSignal"
-        />
-        <ConvictionDepthPanel
-          :layer="navLayer"
-          :detail="selectedDetail"
-        />
-      </div>
+      <div class="card cv-panel-card">
+        <div v-if="isDepthView" class="cv-main-view">
+          <ConvictionStatusChips
+            :signals="data.signals"
+            :selected-id="selectedId"
+            @select="selectSignal"
+          />
+          <ConvictionDepthPanel
+            :layer="navLayer"
+            :detail="selectedDetail"
+          />
+        </div>
 
-      <div v-else-if="mainView === 'signals'" class="cv-main-view">
-        <ConvictionSignalsPanel
-          :signals="data.signals"
-          :selected-id="selectedId"
-          :open-request="openRequest"
-          @select="selectSignal"
-          @fs-page="goFsPage"
-        />
-      </div>
+        <div v-else-if="mainView === 'signals'" class="cv-main-view">
+          <ConvictionSignalsPanel
+            :signals="data.signals"
+            :selected-id="selectedId"
+            :open-request="openRequest"
+            @select="selectSignal"
+            @fs-page="goFsPage"
+          />
+        </div>
 
-      <div v-else-if="mainView === 'portfolio'" class="cv-main-view">
-        <ConvictionPortfolioPanel :portfolio="data.portfolio" />
-      </div>
+        <div v-else-if="mainView === 'portfolio'" class="cv-main-view">
+          <ConvictionPortfolioPanel :portfolio="data.portfolio" />
+        </div>
 
-      <div v-else-if="mainView === 'contradictions'" class="cv-main-view">
-        <ConvictionContradictionsPanel :contradictions="data.contradictions" />
+        <div v-else-if="mainView === 'contradictions'" class="cv-main-view">
+          <ConvictionContradictionsPanel :contradictions="data.contradictions" />
+        </div>
       </div>
     </div>
   </DataState>
@@ -157,9 +159,20 @@ function avgAccent(avg: number) {
   return 'r'
 }
 
-function btypeBarWidth(count: number) {
+const breakdownTiers = computed(() => {
+  const b = data.value?.health.breakdown
+  if (!b) return []
+  return [
+    { key: 'max', label: 'MAX (≥+8)', cls: 'g', count: b.max.count, pct: b.max.pct },
+    { key: 'tactical', label: 'TACTICAL (≥+5)', cls: 'g', count: b.tactical.count, pct: b.tactical.pct },
+    { key: 'reduced', label: 'REDUCED (≥+2)', cls: 'a', count: b.reduced.count, pct: b.reduced.pct },
+    { key: 'cancel', label: 'CANCEL (<+2)', cls: 'r', count: b.cancel.count, pct: b.cancel.pct },
+  ]
+})
+
+function btypePct(count: number) {
   const max = Math.max(...(data.value?.health.businessTypes.map((b) => b.count) ?? [1]))
-  return Math.round((count / max) * 42) + 12
+  return Math.round((count / max) * 100)
 }
 
 function goFsPage(ticker: string) {
@@ -174,11 +187,18 @@ function goFsPage(ticker: string) {
 .cv-scroll {
   display: flex;
   flex-direction: column;
+  gap: 14px;
   min-width: 0;
-}
-.cv-main-view {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.cv-main-view {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
   min-width: 0;
+  gap: 12px;
 }
 </style>

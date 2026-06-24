@@ -23,6 +23,7 @@
       <slot />
     </div>
     <MobileBottomNav :active-tab="cfg.activeTab" />
+    <FunctionDetailPopup />
   </div>
 </template>
 

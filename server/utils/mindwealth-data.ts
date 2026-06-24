@@ -3,6 +3,7 @@ import type {
   BreadthResponse,
   ChatRequest,
   ChatResponse,
+  ChatHistoryResponse,
   ChatSessionsResponse,
   CombinedPerformanceReportResponse,
   CombinedPerformanceReportRow,
@@ -15,7 +16,10 @@ import type {
   SentimentResponse,
   ShortlistResponse,
   SignalCountsResponse,
+  SignalSurfaceResponse,
+  SignalSummaryResponse,
   SignalsListResponse,
+  StrategyHealthResponse,
 } from '~/types/api'
 import type {
   ConvictionContradiction,
@@ -47,9 +51,34 @@ import {
 } from './signal-parsers'
 import { formatPersistenceSignals } from '~/utils/runic-regime'
 import { buildWinRateChart } from '~/utils/win-rate-chart'
+import { UNAVAILABLE_COMPUTE } from '~/constants/unavailable'
 import { baseMeta } from './meta'
 import { mapSentimentLayers } from './sentiment-mapper'
 import {
+  buildActiveCombos,
+  buildMacroOverride,
+  buildMultiSigTickers,
+  buildPortfolioCeiling,
+  buildPortfolioResponse,
+  filterOpenVtRows,
+  indexConvictionByTicker,
+  mapVtRowToAllocationRow,
+  mapVtRowToPnlRow,
+  parseVtMtmPct,
+} from './portfolio-mappers'
+import {
+  mapMacroAnalogTable,
+  mapMacroCancelTracker,
+  mapMacroCombos,
+  mapMacroDataFreshness,
+  mapMacroNarrative,
+  mapMacroOverviewKpis,
+  mapMacroPersistence,
+  mapMacroRegime,
+  mapMacroSsiMultiplier,
+  mapMacroSsiSummary,
+  mapMacroStatus,
+  mapMacroVariablesHeatmap,
   mapRunicAnalog,
   mapRunicCancelTracker,
   mapRunicNightly,
@@ -68,16 +97,53 @@ type TickerSummary = {
   last_daily_update?: string
 }
 
+type ValuationTaxBreakdown = {
+  components?: Record<string, number>
+  total?: number
+}
+
 type TickerFull = TickerSummary & {
   bq_components?: Array<{ name?: string; score?: number; source?: string }>
   fd_votes?: Array<{ label?: string; direction?: string }>
   valuation_tax?: number
+  valuation_tax_breakdown?: ValuationTaxBreakdown
   oey?: number
   pe_percentile?: number
   pe_fwd?: number
   rationale?: string
   verdict?: string
   sizing_pct?: number
+}
+
+function formatValuationTaxBreakdown(
+  breakdown: ValuationTaxBreakdown | undefined,
+  fallbackTotal?: number | null,
+): string {
+  const components = breakdown?.components
+  if (components && typeof components === 'object') {
+    const lines = Object.entries(components)
+      .filter(([, val]) => Number(val) !== 0)
+      .map(([key, val]) => {
+        const n = Number(val)
+        const label = key.replace(/_/g, ' ')
+        const signed = n > 0 ? `+${n}` : String(n)
+        return `${label}: ${signed}`
+      })
+    const total = breakdown.total ?? fallbackTotal
+    if (lines.length) {
+      const parts = [...lines]
+      if (total != null && Number.isFinite(Number(total))) {
+        const n = Number(total)
+        parts.push(`total: ${n > 0 ? '+' : ''}${n}`)
+      }
+      return parts.join(' · ')
+    }
+  }
+  if (fallbackTotal != null && Number.isFinite(Number(fallbackTotal))) {
+    const n = Number(fallbackTotal)
+    return `total: ${n > 0 ? '+' : ''}${n}`
+  }
+  return ''
 }
 
 function metaFromSource(sourceFile?: string): ApiMeta {
@@ -185,16 +251,23 @@ function parseFdVotes(raw: unknown): ConvictionSignalDetail['fdVotes'] {
   return []
 }
 
-function tickerToDetail(t: TickerFull): ConvictionSignalDetail {
+function tickerToDetail(t: TickerFull, rec?: Record<string, unknown>): ConvictionSignalDetail {
+  const valuationTax =
+    t.valuation_tax != null
+      ? Number(t.valuation_tax)
+      : rec?.valuation_tax != null
+        ? Number(rec.valuation_tax)
+        : 0
+
   return {
     ticker: t.ticker,
-    businessType: String(t.business_type ?? ''),
-    bq: Number(t.bq_raw ?? 0),
-    tax: Number(t.valuation_tax ?? 0),
-    conviction: Number(t.conviction_score ?? 0),
-    fsClass: normalizeFsClass(t.fs_class) ?? 'moderate',
-    fdDirection: normalizeFd(t.fd_direction) ?? 'stable',
-    yieldTrap: Boolean(t.yield_trap_warning),
+    businessType: String(t.business_type ?? rec?.business_type ?? ''),
+    bq: Number(t.bq_raw ?? rec?.bq_raw ?? 0),
+    tax: valuationTax,
+    conviction: Number(t.conviction_score ?? rec?.conviction_score ?? 0),
+    fsClass: normalizeFsClass(String(t.fs_class ?? rec?.fs_class)) ?? 'moderate',
+    fdDirection: normalizeFd(String(t.fd_direction ?? rec?.fd_direction)) ?? 'stable',
+    yieldTrap: Boolean(t.yield_trap_warning ?? rec?.yield_trap_warning),
     dimensions: parseBqComponents(t.bq_components),
     oey: Number(t.oey ?? 0),
     oeyFloorLabel: '',
@@ -202,8 +275,8 @@ function tickerToDetail(t: TickerFull): ConvictionSignalDetail {
     pePercentile: Number(t.pe_percentile ?? 0),
     fdVotes: parseFdVotes(t.fd_votes),
     fdSummary: '',
-    taxNote: '',
-    verdictNote: String(t.rationale ?? ''),
+    taxNote: formatValuationTaxBreakdown(t.valuation_tax_breakdown, valuationTax),
+    verdictNote: String(rec?.rationale ?? t.rationale ?? ''),
   }
 }
 
@@ -216,7 +289,12 @@ function scoreRecordToRow(
   const verdict = mapVerdict(String(rec.verdict ?? ticker?.verdict), yieldTrap)
   const isEquity = String(rec.asset_type ?? ticker?.asset_type ?? 'EQUITY') === 'EQUITY'
   const id = sym.symbol.toLowerCase().replace(/[^a-z0-9]/g, '_')
-  const detail = ticker ? tickerToDetail({ ...ticker, ticker: sym.symbol }) : undefined
+  const detail = ticker || rec.rationale != null || rec.valuation_tax != null
+    ? tickerToDetail(
+        ticker ? { ...ticker, ticker: sym.symbol } : { ticker: sym.symbol },
+        rec,
+      )
+    : undefined
 
   return {
     id,
@@ -281,23 +359,62 @@ export async function loadNewSignals(): Promise<SignalsListResponse | null> {
 }
 
 export async function loadAllSignals(): Promise<SignalsListResponse | null> {
-  const overlay = await fetchOverlayFile('all_signal.csv')
-  if (!overlay?.records?.length) return null
-  const signals = recordsToSignals(overlay.records)
-  const functionCounts = Object.entries(
-    signals.reduce<Record<string, number>>((acc, s) => {
-      const k = s.function.toUpperCase()
-      acc[k] = (acc[k] ?? 0) + 1
-      return acc
-    }, {}),
-  ).map(([name, count]) => ({ name, count }))
+  function fromRecords(
+    records: Record<string, unknown>[],
+    sourceFile?: string,
+    reportDate?: string,
+  ): SignalsListResponse {
+    const signals = recordsToSignals(records)
+    const functionCounts = Object.entries(
+      signals.reduce<Record<string, number>>((acc, s) => {
+        const k = s.function.toUpperCase()
+        acc[k] = (acc[k] ?? 0) + 1
+        return acc
+      }, {}),
+    ).map(([name, count]) => ({ name, count }))
 
-  return {
-    meta: metaFromSource(overlay.source_file),
-    summary: buildSignalsSummary(signals),
-    signals,
-    function_counts: functionCounts,
+    const meta = metaFromSource(sourceFile)
+    if (reportDate) {
+      meta.data_updated_at = {
+        date: reportDate,
+        time: '00:00:00',
+        datetime: `${reportDate}T00:00:00Z`,
+        timezone: 'UTC',
+      }
+    }
+
+    return {
+      meta,
+      summary: buildSignalsSummary(signals),
+      signals,
+      function_counts: functionCounts,
+    }
   }
+
+  const report = await mindwealthFetch<{
+    report_date?: string
+    source_file?: string
+    records?: Record<string, unknown>[]
+  }>('/signals/reports/all-signal/latest')
+  if (report?.records?.length) {
+    return fromRecords(report.records, report.source_file, report.report_date)
+  }
+
+  const overlay = await fetchOverlayFile('all_signal.csv')
+  if (overlay?.records?.length) {
+    return fromRecords(overlay.records, overlay.source_file)
+  }
+
+  const surface = await loadSignalSurface('all-signal')
+  if (surface?.records?.length) {
+    return fromRecords(
+      surface.records as Record<string, unknown>[],
+      surface.source_file,
+      surface.report_date,
+    )
+  }
+
+  return null
 }
 
 export async function loadHorizontalNewHigh(): Promise<HorizontalNewHighResponse | null> {
@@ -394,6 +511,25 @@ export async function loadCombinedPerformanceReport(): Promise<CombinedPerforman
 }
 
 export async function loadSignalCounts(): Promise<SignalCountsResponse | null> {
+  const api = await mindwealthFetch<{
+    report_date?: string | null
+    outstanding?: { total: number; long: number; short: number; exited?: number; tier_counts?: Record<string, number> }
+    new?: { total: number; long: number; short: number; exited?: number; tier_counts?: Record<string, number> }
+    shortlist?: { total: number }
+  }>('/signals/counts')
+
+  if (api?.outstanding) {
+    return {
+      outstanding: api.outstanding.total,
+      new: api.new?.total ?? 0,
+      shortlisted: api.shortlist?.total ?? 0,
+      report_date: api.report_date,
+      outstanding_detail: api.outstanding,
+      new_detail: api.new,
+      shortlist_detail: api.shortlist,
+    }
+  }
+
   const [outstanding, newSig, perf, shortlist] = await Promise.all([
     fetchOverlayFile('outstanding_signal.csv'),
     fetchOverlayFile('new_signal.csv'),
@@ -421,24 +557,114 @@ export async function loadSignalCounts(): Promise<SignalCountsResponse | null> {
   }
 }
 
+export type SignalReportSlug = 'outstanding-signals' | 'new-signals' | 'all-signal'
+
+export async function loadSignalSurface(
+  report: SignalReportSlug = 'outstanding-signals',
+  reportDate?: string,
+): Promise<SignalSurfaceResponse | null> {
+  const query = new URLSearchParams({ report })
+  if (reportDate) query.set('report_date', reportDate)
+  return mindwealthFetch<SignalSurfaceResponse>(`/signals/surface?${query.toString()}`)
+}
+
+export async function loadSignalSummary(
+  report: SignalReportSlug = 'outstanding-signals',
+  reportDate?: string,
+): Promise<SignalSummaryResponse | null> {
+  const query = new URLSearchParams({ report })
+  if (reportDate) query.set('report_date', reportDate)
+  return mindwealthFetch<SignalSummaryResponse>(`/signals/summary?${query.toString()}`)
+}
+
+export async function loadStrategyHealth(reportDate?: string): Promise<StrategyHealthResponse | null> {
+  const query = reportDate ? `?report_date=${encodeURIComponent(reportDate)}` : ''
+  return mindwealthFetch<StrategyHealthResponse>(`/signals/strategy-health${query}`)
+}
+
+function apiAggregateWinRate(value: unknown): number | null {
+  if (value == null) return null
+  const n = Number(value)
+  if (!Number.isFinite(n)) return null
+  if (n > 0 && n <= 1) return Math.round(n * 1000) / 10
+  return Math.round(n * 10) / 10
+}
+
+function apiAggregateTotalTrades(value: unknown): number | null {
+  if (value == null) return null
+  const n = Number(value)
+  return Number.isFinite(n) ? n : null
+}
+
+/** Mean forward win % across latest-performance rows (excludes Forward Testing section). */
+function averagePerformanceWinRate(rows: PerformanceRow[]): number | null {
+  if (!rows.length) return null
+  const sum = rows.reduce((acc, row) => acc + row.win_percentage, 0)
+  return Math.round((sum / rows.length) * 10) / 10
+}
+
+function sumPerformanceTrades(rows: PerformanceRow[]): number {
+  return rows.reduce((acc, row) => acc + row.total_trades, 0)
+}
+
 export async function loadPerformance(): Promise<PerformanceResponse | null> {
-  const overlay = await fetchOverlayFile('combined_performance_report.csv')
-  if (!overlay?.records?.length) return null
-  const rows = overlay.records
+  const raw = await mindwealthFetch<{
+    source_file?: string
+    row_count?: number
+    avg_win_rate?: number | null
+    total_trades?: number | null
+    records?: Record<string, unknown>[]
+  }>('/analytics/performance')
+  if (!raw?.records?.length) return null
+
+  const rows = raw.records
     .map(performanceRecordToRow)
     .filter((r): r is NonNullable<typeof r> => r != null)
-  const avgWin =
-    rows.length > 0
-      ? Math.round(rows.reduce((a, r) => a + r.win_percentage, 0) / rows.length * 10) / 10
-      : 0
-  const totalTrades = rows.reduce((a, r) => a + r.total_trades, 0)
+
+  const avgWinFromApi = apiAggregateWinRate(raw.avg_win_rate)
+  const avgWinLocal = averagePerformanceWinRate(rows)
+  const avgWin = avgWinFromApi ?? avgWinLocal
+
+  const totalFromApi = apiAggregateTotalTrades(raw.total_trades)
+  const totalTrades = totalFromApi ?? sumPerformanceTrades(rows)
+
+  const cagrs = raw.records
+    .map((rec) => parsePercentValue(rec['Backtested Strategy CAGR [%]']))
+    .filter((n) => Number.isFinite(n) && n !== 0)
+  const sharpes = raw.records
+    .map((rec) => {
+      const v = rec['Backtested Strategy Sharpe Ratio']
+      const n = typeof v === 'number' ? v : Number(String(v ?? '').replace(/[^\d.-]/g, ''))
+      return n
+    })
+    .filter((n) => Number.isFinite(n) && n !== 0)
+  const avgCagr =
+    cagrs.length > 0
+      ? Math.round((cagrs.reduce((a, n) => a + n, 0) / cagrs.length) * 10) / 10
+      : undefined
+  const avgSharpe =
+    sharpes.length > 0
+      ? Math.round((sharpes.reduce((a, n) => a + n, 0) / sharpes.length) * 100) / 100
+      : undefined
+
+  const functionCount = new Set(
+    raw.records
+      .map((rec) => combinedPerformanceRowFromRecord(rec, 'forward_testing'))
+      .filter((r): r is CombinedPerformanceReportRow => r != null)
+      .map((r) => r.strategy.toUpperCase().replace(/\s+/g, ' ').trim())
+      .filter(Boolean),
+  ).size
+
   return {
-    meta: metaFromSource(overlay.source_file),
+    meta: metaFromSource(raw.source_file),
     rows,
     aggregates: {
       avg_win_rate: avgWin,
+      avg_win_rate_source: avgWinFromApi != null ? 'api' : avgWinLocal != null ? 'computed' : undefined,
+      avg_cagr: avgCagr,
       total_trades: totalTrades,
-      avg_sharpe: 1.0,
+      avg_sharpe: avgSharpe ?? 0,
+      function_count: functionCount,
     },
   }
 }
@@ -651,7 +877,8 @@ export async function loadDashboard(): Promise<DashboardResponse | null> {
         | 'red',
     }))
 
-  const longAvg = outstanding.summary.long_pct
+  const apiAvgWin = performance?.aggregates?.avg_win_rate ?? null
+  const avgWinSource = performance?.aggregates?.avg_win_rate_source
   const winRateChart = performance?.rows?.length
     ? buildWinRateChart(performance.rows, performance.meta ?? outstanding.meta)
     : undefined
@@ -659,10 +886,15 @@ export async function loadDashboard(): Promise<DashboardResponse | null> {
   return {
     meta: outstanding.meta,
     kpis: {
-      avg_win_rate: performance?.aggregates?.avg_win_rate ?? longAvg,
-      avg_win_rate_display: `${performance?.aggregates?.avg_win_rate ?? longAvg}%`,
+      avg_win_rate: apiAvgWin,
+      avg_win_rate_display: apiAvgWin != null ? `${apiAvgWin}%` : UNAVAILABLE_COMPUTE,
       win_rate_mom: 0,
-      win_rate_mom_display: 'live from trade store',
+      win_rate_mom_display:
+        avgWinSource === 'api'
+          ? 'from analytics API'
+          : avgWinSource === 'computed'
+            ? 'computed from performance rows'
+            : 'live from trade store',
       outstanding_count: outstanding.signals.length,
       new_today: (await loadSignalCounts())?.new ?? 0,
       sentiment_score: ssiKpi?.score ?? breadth?.sentiment.score ?? '+0.0',
@@ -877,6 +1109,28 @@ export async function loadChatSessions(): Promise<ChatSessionsResponse | null> {
   }
 }
 
+export async function loadChatHistory(sessionId: string): Promise<ChatHistoryResponse | null> {
+  const rows = await mindwealthFetch<
+    Array<{
+      role: string
+      content: string
+      timestamp?: string
+      metadata?: Record<string, unknown> | null
+    }>
+  >(`/chatbot/sessions/${sessionId}/history?display=true`)
+  if (!rows) return null
+  return {
+    messages: rows
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+        timestamp: m.timestamp,
+        metadata: m.metadata,
+      })),
+  }
+}
+
 async function pollChatJob(jobId: string, timeoutMs: number): Promise<ChatResponse | null> {
   const started = Date.now()
   while (Date.now() - started < timeoutMs) {
@@ -923,13 +1177,16 @@ export async function sendChatMessage(body: ChatRequest): Promise<ChatResponse |
   )
   const timeoutSec = config?.limits?.deep_research_total_timeout_seconds ?? 120
 
-  const preset = body.signal_types?.includes('breadth')
-    ? 'breadth'
-    : body.assets?.length
-      ? 'analyze_asset'
-      : body.signal_types?.length
-        ? 'signal_insights'
-        : 'freeform'
+  const signalTypes = body.selected_signal_types ?? []
+  const preset =
+    body.preset ??
+    (signalTypes.includes('breadth')
+      ? 'breadth_analysis'
+      : body.assets?.length || body.asset
+        ? 'analyze_asset'
+        : signalTypes.length
+          ? 'signal_insights'
+          : 'freeform')
 
   const enqueue = await mindwealthFetch<{ job_id: string; session_id?: string }>(
     `/chatbot/sessions/${sessionId}/messages`,
@@ -938,12 +1195,13 @@ export async function sendChatMessage(body: ChatRequest): Promise<ChatResponse |
       body: {
         message: body.message,
         preset,
-        signal_types: body.signal_types ?? [],
-        assets: body.assets ?? [],
-        from_date: body.from_date,
-        to_date: body.to_date,
-        functions: body.functions ?? [],
-        is_followup: body.is_followup ?? false,
+        selected_signal_types: signalTypes,
+        asset: body.asset ?? null,
+        assets: body.assets ?? null,
+        from_date: body.from_date ?? null,
+        to_date: body.to_date ?? null,
+        functions: body.functions ?? null,
+        deep_research_enabled: body.deep_research_enabled ?? false,
       },
     },
   )
@@ -959,7 +1217,7 @@ export async function loadShortlist(): Promise<ShortlistResponse | null> {
     report_date?: string
     markdown?: string
     row_count?: number
-    records?: Record<string, string>[]
+    records?: Array<Record<string, string | number | boolean | null>>
   }>('/signals/shortlist')
 
   if (report?.markdown) {
@@ -995,122 +1253,60 @@ export async function loadShortlist(): Promise<ShortlistResponse | null> {
   }
 }
 
-const PORTFOLIO_NOTIONAL = 500_000
-const CLUSTER_COLORS = [
-  'var(--green)',
-  'var(--blue)',
-  '#e67e22',
-  'var(--teal)',
-  '#9b59b6',
-  '#1abc9c',
-  '#e74c3c',
-]
-
-function clusterForSymbol(symbol: string, fn: string): string {
-  const s = symbol.toUpperCase()
-  if (s.endsWith('.NS') || s.endsWith('.BO')) return 'india'
-  if (s.endsWith('.HK')) return 'asia_ex_japan'
-  if (s.endsWith('.TO')) return 'canada_def'
-  if (['SPY', 'QQQ', 'IWM', 'VTI'].includes(s)) return 'global_risk_on'
-  if (['XLF', 'JPM', 'BAC', 'GS'].includes(s)) return 'financials'
-  if (['NVDA', 'AMD', 'ASML', 'TSM', 'AAPL', 'MSFT'].includes(s)) return 'semiconductors'
-  const f = fn.toLowerCase()
-  if (f.includes('delta')) return 'commodities'
-  return 'us_tech'
-}
-
-function parseMtmPct(raw: unknown): number {
-  if (raw == null) return 0
-  const m = String(raw).match(/(-?[\d.]+)%/)
-  return m ? Number(m[1]) : 0
-}
-
 export async function loadPortfolio(): Promise<PortfolioResponse | null> {
-  const [longBook, shortBook, layers, variables] = await Promise.all([
+  const [
+    longBook,
+    shortBook,
+    macroRegime,
+    ssiMultiplier,
+    variables,
+    overviewKpis,
+    outstanding,
+    conviction,
+  ] = await Promise.all([
     mindwealthFetch<{ records?: Record<string, unknown>[] }>('/virtual-trading/long'),
     mindwealthFetch<{ records?: Record<string, unknown>[] }>('/virtual-trading/short'),
-    mindwealthFetch<{ composite?: { ssi_multiplier?: number } }>('/analytics/sentiment/layers'),
-    mindwealthFetch<{ regime?: Record<string, unknown>; variables_dashboard?: Array<{ variable?: string; current?: number }> }>(
+    mindwealthFetch<Record<string, unknown>>('/macro/regime'),
+    mindwealthFetch<Record<string, unknown>>('/macro/ssi/multiplier'),
+    mindwealthFetch<{ regime?: Record<string, unknown>; variables_dashboard?: Array<{ variable?: string; current?: number; percentile?: number }> }>(
       '/macro/runic/variables/current',
     ),
+    mindwealthFetch<Record<string, unknown>>('/macro/overview/kpis'),
+    loadOutstandingSignals(),
+    loadConviction(),
   ])
 
-  type VtRow = Record<string, unknown> & { _side: 'Long' | 'Short' }
-  const openLong = (longBook?.records ?? []).filter((r) => String(r.Status ?? '').toLowerCase() === 'open')
-  const openShort = (shortBook?.records ?? []).filter((r) => String(r.Status ?? '').toLowerCase() === 'open')
-  const openAll: VtRow[] = [
-    ...openLong.map((r) => ({ ...r, _side: 'Long' as const })),
-    ...openShort.map((r) => ({ ...r, _side: 'Short' as const })),
-  ]
-
+  const openAll = filterOpenVtRows(longBook, shortBook)
   if (!openAll.length) return null
 
-  const vixVar = variables?.variables_dashboard?.find(
-    (v) => String(v.variable ?? '').toUpperCase() === 'VIX',
+  const convictionByTicker = indexConvictionByTicker(conviction?.signals ?? [])
+  const multiSigTickers = buildMultiSigTickers(
+    (outstanding?.signals ?? []).map((s) => ({
+      symbol: s.ticker,
+      function: s.function,
+      direction: s.direction,
+    })),
   )
-  const vix = vixVar?.current != null ? Number(vixVar.current) : 16
-  const valRegime = String(variables?.regime?.val_regime ?? 'NORMAL')
-  const maxDeploy = valRegime === 'EXTREME' ? 70 : 80
-  const ssiMult = layers?.composite?.ssi_multiplier ?? 1
-  const creditAdj = vix > 25 ? 0.85 : vix > 20 ? 0.9 : 1
-  const finalCeiling = Math.round(maxDeploy * ssiMult * creditAdj)
-  const deployPct = Math.min(finalCeiling, 85)
-  const deployedTotal = Math.round((PORTFOLIO_NOTIONAL * deployPct) / 100)
-  const perPosition = Math.round(deployedTotal / openAll.length)
 
-  const clusterTotals = new Map<string, number>()
-  const positions = openAll.slice(0, 24).map((r) => {
-    const ticker = String(r.Symbol ?? '—')
-    const fn = String(r.Function ?? '')
-    const cluster = clusterForSymbol(ticker, fn)
-    clusterTotals.set(cluster, (clusterTotals.get(cluster) ?? 0) + 1)
-    const wr = parsePercentValue(r['Backtested Win Rate [%]'])
-    const profit = parseMtmPct(r['Realised/Unrealised Profit'])
-    const excluded = profit < -15 || wr < 60
-    return {
-      cluster,
-      ticker,
-      direction: r._side,
-      meta: `${fn} · ${String(r.Interval ?? '')} · WR ${wr.toFixed(1)}% · MTM ${profit.toFixed(1)}%`,
-      dollar: excluded ? 0 : perPosition,
-      pct: excluded ? 0 : Math.round((perPosition / PORTFOLIO_NOTIONAL) * 1000) / 10,
-      excluded,
-    }
-  })
+  const allocationRows = openAll.map((row) =>
+    mapVtRowToAllocationRow(row, convictionByTicker, multiSigTickers),
+  )
+  const pnlRows = openAll.map((row) =>
+    mapVtRowToPnlRow(row, convictionByTicker, multiSigTickers),
+  )
 
-  const activeClusters = [...clusterTotals.entries()]
-  const clusterSum = activeClusters.reduce((a, [, n]) => a + n, 0) || 1
-  const clusters = activeClusters.map(([id, count], i) => ({
-    id,
-    pct: Math.round((count / clusterSum) * deployPct),
-    color: CLUSTER_COLORS[i % CLUSTER_COLORS.length],
-  }))
+  const ceiling = buildPortfolioCeiling({ macroRegime, ssiMultiplier, variables })
+  const macroOverride = buildMacroOverride(macroRegime, overviewKpis)
+  const activeCombos = buildActiveCombos(macroRegime, overviewKpis)
 
-  const actualDeployed = positions.reduce((a, p) => a + p.dollar, 0)
-  const cash = PORTFOLIO_NOTIONAL - actualDeployed
-
-  return {
+  return buildPortfolioResponse({
     meta: baseMeta(),
-    regime: {
-      vix: Math.round(vix * 10) / 10,
-      vix_pct: Math.min(99, Math.round(vix * 2.5)),
-      regime: valRegime,
-      max_deploy: maxDeploy,
-      ssi_multiplier: ssiMult,
-      credit_adj: creditAdj,
-      final_ceiling: finalCeiling,
-      cash_pct: Math.round((cash / PORTFOLIO_NOTIONAL) * 100),
-    },
-    clusters,
-    positions,
-    totals: {
-      deployed: actualDeployed,
-      deployed_pct: Math.round((actualDeployed / PORTFOLIO_NOTIONAL) * 100),
-      cash,
-      cash_pct: Math.round((cash / PORTFOLIO_NOTIONAL) * 100),
-      idle_cash_yield: 3.5,
-    },
-  }
+    ceiling,
+    allocationRows,
+    pnlRows,
+    macroOverride,
+    activeCombos,
+  })
 }
 
 export async function loadMonitoredTrades(): Promise<MonitoredTradesResponse | null> {
@@ -1136,7 +1332,7 @@ export async function loadMonitoredTrades(): Promise<MonitoredTradesResponse | n
     const signalPrice = Number(t.Signal_Price ?? 0)
     const currentPrice = Number(t.Current_Price ?? signalPrice)
     const mtmRaw = t.Raw_Data?.['Current Mark to Market and Holding Period']
-    const mtmPct = parseMtmPct(mtmRaw)
+    const mtmPct = parseVtMtmPct(mtmRaw) ?? 0
     const holdMatch = mtmRaw != null ? String(mtmRaw).match(/(\d+)\s*days?/i) : null
     const priceChange =
       signalPrice > 0 ? Math.round(((currentPrice - signalPrice) / signalPrice) * 1000) / 10 : 0
@@ -1176,18 +1372,76 @@ export async function loadRunicNightly() {
   return raw ? mapRunicNightly(raw) : null
 }
 
+export async function loadMacroOverviewKpis() {
+  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/overview/kpis')
+  return raw ? mapMacroOverviewKpis(raw) : null
+}
+
+export async function loadMacroRegime() {
+  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/regime')
+  return raw ? mapMacroRegime(raw) : null
+}
+
+export async function loadMacroCombos() {
+  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/combos')
+  return raw ? mapMacroCombos(raw) : null
+}
+
+export async function loadMacroNarrative() {
+  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/narrative')
+  return raw ? mapMacroNarrative(raw) : null
+}
+
+export async function loadMacroStatus() {
+  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/status')
+  return raw ? mapMacroStatus(raw) : null
+}
+
+export async function loadMacroPersistence() {
+  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/persistence')
+  return raw ? mapMacroPersistence(raw) : null
+}
+
+export async function loadMacroDataFreshness() {
+  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/data/freshness')
+  return raw ? mapMacroDataFreshness(raw) : null
+}
+
+export async function loadMacroSsiSummary() {
+  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/ssi/summary')
+  return raw ? mapMacroSsiSummary(raw) : null
+}
+
+export async function loadMacroSsiMultiplier() {
+  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/ssi/multiplier')
+  return raw ? mapMacroSsiMultiplier(raw) : null
+}
+
 export async function loadRunicVariables() {
+  const heatmap = await mindwealthFetch<Record<string, unknown>>('/macro/variables/heatmap')
+  if (heatmap) return mapMacroVariablesHeatmap(heatmap)
   const raw = await mindwealthFetch<Record<string, unknown>>('/macro/runic/variables/current')
   return raw ? mapRunicVariables(raw) : null
 }
 
 export async function loadRunicCancelTracker() {
+  const [cancel, fWindow] = await Promise.all([
+    mindwealthFetch<Record<string, unknown>>('/macro/combo-c/cancel'),
+    mindwealthFetch<Record<string, unknown>>('/macro/combo-f/window'),
+  ])
+  if (cancel || fWindow) return mapMacroCancelTracker(cancel, fWindow)
   const raw = await mindwealthFetch<Record<string, unknown>>('/macro/runic/nightly')
   return raw ? mapRunicCancelTracker(raw) : null
 }
 
 export async function loadRunicAnalog(combo: string) {
-  const raw = await mindwealthFetch<Record<string, unknown>>('/macro/runic/nightly')
-  if (!raw) return null
-  return mapRunicAnalog(combo.toUpperCase(), raw)
+  const letter = combo.toUpperCase()
+  const raw = await mindwealthFetch<Record<string, unknown>>(`/macro/analogs/${letter}`)
+  if (raw) {
+    const mapped = mapMacroAnalogTable(letter, raw)
+    if (mapped?.rows?.length) return mapped
+  }
+  const nightly = await mindwealthFetch<Record<string, unknown>>('/macro/runic/nightly')
+  if (!nightly) return null
+  return mapRunicAnalog(letter, nightly)
 }

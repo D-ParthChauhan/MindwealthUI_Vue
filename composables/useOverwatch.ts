@@ -1,15 +1,15 @@
 import type { OverwatchPanelAlert, OverwatchResponse, OverwatchSystemCheck } from '~/types/api'
 
-export type AnalystTab = 'all' | 'signals' | 'macro' | 'system'
+export type AnalystTab = 'chat' | 'all' | 'signals' | 'macro' | 'system'
 
 const POLL_MS = 60_000
 const TAB_STORAGE_KEY = 'analyst-active-tab'
 
 function tabFromStorage(): AnalystTab {
-  if (!import.meta.client) return 'all'
+  if (!import.meta.client) return 'chat'
   const v = localStorage.getItem(TAB_STORAGE_KEY)
-  if (v === 'signals' || v === 'macro' || v === 'system' || v === 'all') return v
-  return 'all'
+  if (v === 'chat' || v === 'signals' || v === 'macro' || v === 'system' || v === 'all') return v
+  return 'chat'
 }
 
 function autoTabForType(type: OverwatchPanelAlert['type']): AnalystTab | null {
@@ -38,6 +38,7 @@ export function useOverwatch() {
 
   const badgeText = computed(() => {
     const map: Record<AnalystTab, string> = {
+      chat: 'On-demand · signals · macro · web',
       all: 'Overwatch · Claude triggered',
       signals: `Overwatch · ${signalAlerts.value.length} watch active`,
       macro: `Overwatch · ${macroAlerts.value.length} runic active`,
@@ -48,7 +49,8 @@ export function useOverwatch() {
 
   const visibleTabs = computed(() => {
     const tabs: Array<{ id: AnalystTab; label: string }> = [
-      { id: 'all', label: `ALL (${activeAlertCount.value})` },
+      { id: 'chat', label: 'CHAT' },
+      { id: 'all', label: `ALERTS (${activeAlertCount.value})` },
       { id: 'signals', label: 'SIGNALS' },
       { id: 'macro', label: 'MACRO' },
     ]
@@ -57,6 +59,7 @@ export function useOverwatch() {
   })
 
   const tabAlerts = computed(() => {
+    if (activeTab.value === 'chat') return []
     switch (activeTab.value) {
       case 'signals':
         return signalAlerts.value
@@ -142,7 +145,7 @@ export function useOverwatch() {
   }
 
   function openManualDefaultTab() {
-    setActiveTab('all')
+    setActiveTab('chat')
     clearPending()
   }
 

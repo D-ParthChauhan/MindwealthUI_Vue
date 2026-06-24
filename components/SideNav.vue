@@ -38,6 +38,9 @@
           </button>
         </div>
       </template>
+      <slot v-if="group.widget === 'signals-display-mode'" name="signals-display-mode" />
+      <slot v-else-if="group.widget === 'portfolio-ceiling'" name="portfolio-ceiling" />
+      <slot v-else-if="group.widget === 'portfolio-flags'" name="portfolio-flags" />
     </div>
   </div>
 </template>
@@ -61,6 +64,7 @@ const props = defineProps<{
     label: string
     items: NavItem[]
     static?: string
+    widget?: 'signals-display-mode' | 'portfolio-ceiling' | 'portfolio-flags'
   }>
   activeId: string
   multiActiveIds?: string[]

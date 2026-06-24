@@ -27,39 +27,43 @@
       </button>
     </div>
 
-    <header class="sig-detail-hero" :class="heroToneClass">
-      <div class="sig-detail-title-row">
-        <div class="sig-detail-ticker">{{ signal.symbol }}</div>
-        <div class="sig-detail-badges">
-          <DirectionBadge :direction="direction" />
-          <span v-if="degraded" class="sig-detail-chip warn">FWD ↓</span>
-          <span v-else-if="statusLabel === 'Active'" class="sig-detail-chip ok">Active</span>
-        </div>
-      </div>
+    <div class="sig-detail-hero-wrap mw-glass-hero-wrap">
+      <header class="sig-detail-hero mw-glass-hero" :class="heroToneClass">
+        <div class="mw-glass-hero-inner">
+          <div class="sig-detail-title-row">
+            <div class="sig-detail-ticker">{{ signal.symbol }}</div>
+            <div class="sig-detail-badges">
+              <DirectionBadge :direction="direction" />
+              <span v-if="degraded" class="sig-detail-chip warn">FWD ↓</span>
+              <span v-else-if="isActive" class="sig-detail-chip ok">Active</span>
+            </div>
+          </div>
 
-      <div v-if="functionLabel || intervalLabel" class="sig-detail-fn-row">
-        <span v-if="functionLabel" class="sig-fn-pill fn">{{ functionLabel }}</span>
-        <span v-if="intervalLabel" class="sig-fn-pill int">{{ intervalLabel }}</span>
-      </div>
+          <div v-if="functionLabel || intervalLabel" class="sig-detail-fn-row">
+            <span v-if="functionLabel" class="sig-fn-pill fn">{{ functionLabel }}</span>
+            <span v-if="intervalLabel" class="sig-fn-pill int">{{ intervalLabel }}</span>
+          </div>
 
-      <div class="sig-detail-meta">
-        <div
-          v-for="field in visibleHeaderFields"
-          :key="field.key"
-          class="sig-detail-meta-item"
-          :class="[headerItemClass(field.key), { wide: field.key === 'confirmation_status' }]"
-        >
-          <div class="sig-detail-meta-label">{{ field.label }}</div>
-          <div
-            class="sig-detail-meta-value"
-            :class="headerValueClass(field)"
-            :title="field.value.length > 48 ? field.value : undefined"
-          >
-            {{ field.value }}
+          <div class="sig-detail-meta">
+            <div
+              v-for="field in visibleHeaderFields"
+              :key="field.key"
+              class="sig-detail-meta-item"
+              :class="[headerItemClass(field.key), { wide: field.key === 'confirmation_status' }]"
+            >
+              <div class="sig-detail-meta-label">{{ field.label }}</div>
+              <div
+                class="sig-detail-meta-value"
+                :class="headerValueClass(field)"
+                :title="field.value.length > 48 ? field.value : undefined"
+              >
+                {{ field.value }}
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </div>
 
     <div class="sig-detail-body">
       <details
@@ -116,9 +120,10 @@ defineEmits<{
   next: []
 }>()
 
+const signalHealth = computed(() => deriveSignalStatus(props.signal))
 const direction = computed(() => formatDirection(props.signal.signal_type))
-const degraded = computed(() => deriveSignalStatus(props.signal) === 'degraded')
-const statusLabel = computed(() => (degraded.value ? 'FWD degraded' : 'Active'))
+const degraded = computed(() => signalHealth.value === 'degraded')
+const isActive = computed(() => signalHealth.value === 'active')
 
 const layout = computed(() => buildSignalDetailLayout(props.signal))
 const headerFields = computed(() => layout.value.headerFields)
@@ -127,9 +132,11 @@ const intervalLabel = computed(() => headerFields.value.find((f) => f.key === 'i
 const visibleHeaderFields = computed(() =>
   headerFields.value.filter((f) => f.key !== 'function' && f.key !== 'interval'),
 )
-const heroToneClass = computed(() =>
-  direction.value === 'LONG' ? 'hero-long' : 'hero-short',
-)
+const heroToneClass = computed(() => {
+  if (degraded.value) return 'tone-a'
+  if (isActive.value) return 'tone-g'
+  return ''
+})
 const dropdownSections = computed(() => layout.value.sections)
 const showAcrossAllNote = computed(() => layout.value.showAcrossAllNote)
 const acrossAllNote = SIGNAL_DETAIL_ACROSS_ALL_NOTE
@@ -256,31 +263,8 @@ function bodyValueClass(field: SignalDetailField): string {
   background: rgba(255, 255, 255, 0.06);
 }
 
-.sig-detail-hero {
-  padding: 12px 12px 11px 14px;
-  border-bottom: 1px solid var(--b1);
-  flex-shrink: 0;
-  border-left: 3px solid var(--gold);
-  background:
-    linear-gradient(135deg, rgba(201, 168, 76, 0.1) 0%, transparent 42%),
-    linear-gradient(180deg, rgba(22, 160, 133, 0.06) 0%, transparent 55%),
-    var(--s1);
-}
-
-.sig-detail-hero.hero-long {
-  border-left-color: var(--green);
-  background:
-    linear-gradient(135deg, rgba(39, 174, 96, 0.1) 0%, transparent 40%),
-    linear-gradient(180deg, rgba(201, 168, 76, 0.05) 0%, transparent 50%),
-    var(--s1);
-}
-
-.sig-detail-hero.hero-short {
-  border-left-color: var(--amber);
-  background:
-    linear-gradient(135deg, rgba(230, 126, 34, 0.1) 0%, transparent 40%),
-    linear-gradient(180deg, rgba(201, 168, 76, 0.05) 0%, transparent 50%),
-    var(--s1);
+.sig-detail-hero-wrap {
+  padding: 12px 14px 11px;
 }
 
 .sig-detail-fn-row {

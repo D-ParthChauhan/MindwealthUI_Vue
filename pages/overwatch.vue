@@ -10,21 +10,21 @@
       <div class="kr k4">
         <KpiCard
           label="BACKTEST WR"
-          :value="`${data.kpis?.backtest_wr ?? 0}%`"
+          :value="apiPercent(data, data.kpis?.backtest_wr ?? null)"
           delta="trained period"
           accent="g"
           delta-class="g"
         />
         <KpiCard
           label="FORWARD TEST WR"
-          :value="`${data.kpis?.forward_wr ?? 0}%`"
+          :value="apiPercent(data, data.kpis?.forward_wr ?? null)"
           delta="last 6m · above 60% threshold"
           accent="b"
           delta-class="b"
         />
         <KpiCard
           label="FORCED PORTFOLIO"
-          :value="`+${data.kpis?.forced_portfolio_ytd ?? 0}%`"
+          :value="forcedPortfolioLabel"
           delta="YTD · live"
           accent="gold"
           delta-class="gold"
@@ -64,7 +64,7 @@
           </div>
           <div class="live-card">
             <div class="live-label">LIVE PORTFOLIO · FORCED MODEL (AHIL)</div>
-            <div class="live-row"><span>YTD Return</span><span class="green">+{{ data.kpis?.forced_portfolio_ytd ?? 0 }}%</span></div>
+            <div class="live-row"><span>YTD Return</span><span class="green">{{ forcedPortfolioLabel }}</span></div>
             <div class="live-row"><span>Active alerts</span><span class="gold">{{ data.count }}</span></div>
           </div>
         </div>
@@ -87,11 +87,21 @@
 
 <script setup lang="ts">
 import type { OverwatchResponse } from '~/types/api'
+import { apiPercent, isApiUnavailable } from '~/utils/api-display'
 
 definePageMeta({ layout: 'terminal' })
 
 const { fetchOverwatch } = useApi()
 const { data, pending, error, refresh } = fetchOverwatch()
+
+const forcedPortfolioLabel = computed(() => {
+  if (!data.value || isApiUnavailable(data.value)) {
+    return apiPercent(data.value, null)
+  }
+  const ytd = data.value.kpis?.forced_portfolio_ytd
+  if (ytd == null) return '—'
+  return `+${ytd}%`
+})
 
 function logDotClass(log: NonNullable<OverwatchResponse['system_logs']>[number]) {
   if (log.type === 'delay') return 'gold-pulse'

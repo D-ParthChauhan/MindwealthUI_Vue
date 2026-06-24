@@ -1,5 +1,7 @@
 import type { ChatRequest, ChatResponse } from '~/types/api'
+import { UNAVAILABLE_FETCH } from '~/constants/unavailable'
 import { sendChatMessage } from '../utils/mindwealth-data'
+import { isMockDataEnabled } from '../utils/data-resolution'
 import { isBackendConfigured } from '../utils/mindwealth-client'
 
 function mockChatReply(body: ChatRequest): ChatResponse {
@@ -8,6 +10,7 @@ function mockChatReply(body: ChatRequest): ChatResponse {
     session_id: sessionId,
     reply: `**AI Analyst (mock)** — Received your question about *${body.message.slice(0, 80)}${body.message.length > 80 ? '…' : ''}*.\n\nBackend unreachable; showing mock response.`,
     metadata: { mock: true },
+    data_source: 'mock',
   }
 }
 
@@ -25,13 +28,20 @@ export default defineEventHandler(async (event) => {
         reply: fromBackend.error,
         metadata: fromBackend.metadata,
         error: fromBackend.error,
+        data_source: 'live',
       }
     }
-    return fromBackend
+    return { ...fromBackend, data_source: 'live' }
   }
 
   if (!isBackendConfigured()) {
-    return mockChatReply(body)
+    if (isMockDataEnabled()) return mockChatReply(body)
+    return {
+      session_id: body.session_id || `unavail-${Date.now()}`,
+      reply: UNAVAILABLE_FETCH,
+      metadata: { unavailable: true },
+      data_source: 'unavailable',
+    }
   }
 
   throw createError({

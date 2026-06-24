@@ -1,8 +1,7 @@
 <template>
-  <div>
+  <div class="cv-signals-panel" :class="{ 'has-open-drawer': !!openId }">
     <div class="cv-section-hint">
-      <span class="m-lbl-long">Click any row to expand BQ drilldown · All fundamentals + FS detail in-line below row</span>
-      <span class="m-lbl-short">Tap a row for BQ · FS · fd detail</span>
+      Click a row to expand BQ · FS · FD detail
     </div>
     <div class="m-tbl-scroll">
     <table class="tbl cv-tbl">

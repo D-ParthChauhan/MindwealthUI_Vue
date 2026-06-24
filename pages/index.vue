@@ -9,10 +9,10 @@
         A rules-based quant model with a 10-year backtested track record — layered with a live macro intelligence engine, a 13-signal Super Sentiment Index, and a fundamental Conviction Engine. Built for serious capital.
       </p>
       <div class="hstats">
-        <div><span class="hsv">89.9%</span><span class="hsl">AVG WIN RATE</span></div>
-        <div><span class="hsv">24.3%</span><span class="hsl">AVG 10YR CAGR</span></div>
-        <div><span class="hsv">10</span><span class="hsl">FUNCTIONS</span></div>
-        <div><span class="hsv">165</span><span class="hsl">MACRO COMBOS</span></div>
+        <div><span class="hsv">{{ avgWinRate }}</span><span class="hsl">AVG WIN RATE</span></div>
+        <div><span class="hsv">{{ avgCagr }}</span><span class="hsl">AVG 10YR CAGR</span></div>
+        <div><span class="hsv">{{ functionCount }}</span><span class="hsl">FUNCTIONS</span></div>
+        <div><span class="hsv">{{ macroComboCount }}</span><span class="hsl">MACRO COMBOS</span></div>
       </div>
       <div class="htags">
         <div class="htag gold">Runic Macro Engine</div>
@@ -42,6 +42,8 @@
 
 <script setup lang="ts">
 definePageMeta({ layout: 'default' })
+
+const { avgWinRate, avgCagr, functionCount, macroComboCount } = useLandingStats()
 
 const featureCards = [
   {
