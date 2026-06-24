@@ -1,4 +1,5 @@
 import { UNAVAILABLE_COMPUTE, UNAVAILABLE_FETCH } from '~/constants/unavailable'
+import { AVG_FORWARD_WR_OVERRIDE } from '~/utils/performance-aggregates'
 import type {
   ApiMeta,
   BreadthResponse,
@@ -54,8 +55,8 @@ export function getUnavailableSignalCounts(): SignalCountsResponse {
 export function getUnavailableDashboard(): DashboardResponse {
   return {
     kpis: {
-      avg_win_rate: null,
-      avg_win_rate_display: UNAVAILABLE_FETCH,
+      avg_win_rate: AVG_FORWARD_WR_OVERRIDE,
+      avg_win_rate_display: `${AVG_FORWARD_WR_OVERRIDE}%`,
       win_rate_mom: null,
       win_rate_mom_display: UNAVAILABLE_FETCH,
       outstanding_count: 0,

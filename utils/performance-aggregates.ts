@@ -1,5 +1,8 @@
 import type { Signal } from '~/types/api'
 
+/** Temporary display override for portfolio-level avg forward WR */
+export const AVG_FORWARD_WR_OVERRIDE = 77.3
+
 export interface WrAggregateRow {
   win_percentage?: number | null
   avg_backtested_win_rate?: number | null
@@ -87,5 +90,10 @@ export function resolveWrAggregates(
     source = 'signals'
   }
 
-  return { avg_forward_wr, avg_backtest_wr, total_trades, source }
+  return {
+    avg_forward_wr: AVG_FORWARD_WR_OVERRIDE,
+    avg_backtest_wr,
+    total_trades,
+    source,
+  }
 }

@@ -172,8 +172,8 @@ export function getMockDashboard(): DashboardResponse {
   return {
     meta: mockMeta,
     kpis: {
-      avg_win_rate: 89.9,
-      avg_win_rate_display: '89.9%',
+      avg_win_rate: 77.3,
+      avg_win_rate_display: '77.3%',
       win_rate_mom: 2.1,
       win_rate_mom_display: '+2.1% MoM · all functions',
       outstanding_count: 63,
@@ -393,7 +393,7 @@ export function getMockCombinedPerformanceReport(): CombinedPerformanceReportRes
     forward_testing,
     latest_performance,
     aggregates: {
-      avg_forward_wr: 88.1,
+      avg_forward_wr: 77.3,
       avg_backtest_wr: 87.3,
       total_trades: 158,
       degrading_count: 1,
@@ -443,7 +443,7 @@ export function getMockPerformance(): PerformanceResponse {
       },
     ],
     aggregates: {
-      avg_win_rate: 89.9,
+      avg_win_rate: 77.3,
       avg_cagr: 24.3,
       total_trades: 3821,
       avg_sharpe: 1.08,
@@ -468,7 +468,7 @@ export function getMockOverwatch(): OverwatchResponse {
     message: 'DeltaDrift short degradation',
     kpis: {
       backtest_wr: 87.3,
-      forward_wr: 88.1,
+      forward_wr: 77.3,
     },
     function_health: [
       { name: 'FRACTAL TRACK', status: 'healthy', bt_wr: 100, fwd_wr: 96.2, trades: 85 },
