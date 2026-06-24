@@ -47,7 +47,7 @@ export interface TerminalPageConfig {
       chips?: Array<{ id: string; label: string }>
     }>
     static?: string
-    widget?: 'signals-display-mode' | 'portfolio-ceiling' | 'portfolio-flags'
+    widget?: 'signals-display-mode' | 'portfolio-flags'
   }>
   navActiveId: string
   multiActiveIds?: string[]
@@ -229,11 +229,6 @@ const configs: Record<string, Omit<TerminalPageConfig, 'navActiveId' | 'regime' 
           { id: 'risk', label: 'Portfolio Risk', sub: 'correlation · holdings', dot: 'r' },
           { id: 'pnl', label: 'Live P&L', sub: 'open positions', dot: 'gold' },
         ],
-      },
-      {
-        label: 'Equity deployment ceiling',
-        widget: 'portfolio-ceiling',
-        items: [],
       },
       {
         label: 'Flag guide',

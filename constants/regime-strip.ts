@@ -82,6 +82,32 @@ function formatStripWti(pct: number): string {
   return `${rounded > 0 ? '+' : ''}${rounded}%`
 }
 
+function postureStripColor(text: string): string {
+  const t = text.toUpperCase()
+  if (t.includes('FEAR') || t.includes('TIGHT')) return 'var(--red)'
+  if (t.includes('BRAVE') || t.includes('EASY')) return 'var(--green)'
+  return 'var(--gold)'
+}
+
+function macroStatusList(
+  status: MacroStatusResponse | null | undefined,
+  nightlyIds: string[],
+  key: 'active_combos' | 'watch_combos',
+): string[] {
+  const fromStatus = status?.[key] ?? []
+  if (status && !isApiUnavailable(status) && fromStatus.length) return fromStatus
+  return nightlyIds.length ? nightlyIds : fromStatus
+}
+
+function macroStatusField<T>(
+  status: MacroStatusResponse | null | undefined,
+  nightlyValue: T | null | undefined,
+  pick: (s: MacroStatusResponse) => T,
+): T | null | undefined {
+  if (status && !isApiUnavailable(status)) return pick(status)
+  return nightlyValue
+}
+
 function formatMacroActiveChip(
   ids: string[],
   combos: MacroCombosResponse['combos'],
@@ -110,11 +136,10 @@ function formatMacroWatchChip(
   return ids
     .map((id) => {
       const c = combos.find((x) => x.combo === id)
-      const total = c?.total_legs ?? 3
-      const confirmed =
-        c?.confirmed_legs?.length
-        ?? nightly?.watch_combos?.find((w) => w.combo === id)?.legs_confirmed
-        ?? 0
+      const watchRow = nightly?.watch_combos?.find((w) => w.combo === id)
+      const total = c?.total_legs || c?.legs_required || 0
+      const confirmed = c?.confirmed_legs?.length ?? watchRow?.legs_confirmed
+      if (!total || confirmed == null) return id
       return `${id} ${confirmed}/${total}`
     })
     .join(' · ')
@@ -207,35 +232,44 @@ export function buildRegimeStrip(path: string, ctx: RegimeStripContext): RegimeS
       const combos = ctx.macroCombos?.combos ?? []
       const n = ctx.nightly
       const items: string[] = []
-      const posture = status?.brave_fearful_display ?? n?.brave_fearful_display ?? ''
+      const posture =
+        macroStatusField(status, n?.brave_fearful_display, (s) => s.brave_fearful_display)
+        ?? ''
 
-      const dominant = status?.dominant_signal ?? n?.dominant_signal
-      if (dominant && dominant !== '—') {
+      const dominant =
+        macroStatusField(status, n?.dominant_signal, (s) => s.dominant_signal)
+        ?? n?.dominant_signal
+      if (dominant && dominant !== '—' && !dominant.includes(UNAVAILABLE_FETCH)) {
         items.push(chip('DOMINANT', dominant, 'var(--gold)'))
       }
 
-      const activeIds = status?.active_combos?.length
-        ? status.active_combos
-        : n?.active_combos?.map((c) => c.combo) ?? []
+      const activeIds = macroStatusList(
+        status,
+        n?.active_combos?.map((c) => c.combo) ?? [],
+        'active_combos',
+      )
       if (activeIds.length) {
         items.push(chip('ACTIVE', formatMacroActiveChip(activeIds, combos), 'var(--green)'))
       }
 
-      const watchIds = status?.watch_combos?.length
-        ? status.watch_combos
-        : n?.watch_combos?.map((w) => w.combo) ?? []
+      const watchIds = macroStatusList(
+        status,
+        n?.watch_combos?.map((w) => w.combo) ?? [],
+        'watch_combos',
+      )
       if (watchIds.length) {
         items.push(chip('WATCH', formatMacroWatchChip(watchIds, combos, n), 'var(--amber)'))
       }
 
-      const cancelWeek = status?.combo_c_cancel_week ?? n?.combo_c_cancel_fri
-      if (cancelWeek != null || status?.combo_c_cancelled) {
-        const label = status?.combo_c_cancelled ? 'CANCELLED' : `${cancelWeek}/4`
-        items.push(chip('C CANCEL', label, status?.combo_c_cancelled ? 'var(--t3)' : 'var(--amber)'))
+      const cancelWeek = macroStatusField(status, n?.combo_c_cancel_fri, (s) => s.combo_c_cancel_week)
+      const cancelCancelled = status && !isApiUnavailable(status) ? status.combo_c_cancelled : false
+      if (cancelWeek != null || cancelCancelled) {
+        const label = cancelCancelled ? 'CANCELLED' : `${cancelWeek}/4`
+        items.push(chip('C CANCEL', label, cancelCancelled ? 'var(--t3)' : 'var(--amber)'))
       }
 
-      const cftc = status?.cftc_status ?? n?.cftc_status
-      if (cftc) {
+      const cftc = macroStatusField(status, n?.cftc_status, (s) => s.cftc_status)
+      if (cftc && !String(cftc).includes(UNAVAILABLE_FETCH)) {
         const short = shortCftcStatus(String(cftc))
         const color = short.includes('PENDING') || short.includes('STALE')
           ? 'var(--amber)'
@@ -243,33 +277,40 @@ export function buildRegimeStrip(path: string, ctx: RegimeStripContext): RegimeS
         items.push(chip('CFTC', short, color))
       }
 
-      if (status?.pending_cpi_release) {
+      const pendingCpi = status && !isApiUnavailable(status) ? status.pending_cpi_release : false
+      if (pendingCpi) {
         items.push(chip('CPI', 'PENDING', 'var(--amber)'))
       }
-      if (status?.vix_bypass || n?.vix_bypass_active) {
+
+      const vixBypass =
+        (status && !isApiUnavailable(status) ? status.vix_bypass : false)
+        || Boolean(n?.vix_bypass_active)
+      if (vixBypass) {
         items.push(chip('VIX', 'BYPASS', 'var(--amber)'))
       }
 
-      if (n && Number.isFinite(n.wti_4wk_pct)) {
+      if (n && !isApiUnavailable(n) && Number.isFinite(n.wti_4wk_pct)) {
         const wti = formatStripWti(n.wti_4wk_pct)
         items.push(chip('WTI 4W', wti, n.wti_4wk_pct >= 0 ? 'var(--green)' : 'var(--red)'))
       }
 
-      const tactical = posture ? shortPosturePart(posture, 'tactical') : ''
-      const strategic = posture ? shortPosturePart(posture, 'strategic') : ''
-      const headline = tactical || (n ? deriveRegimeLabel(n) : 'RUNIC MACRO')
+      const tactical = posture && !posture.includes(UNAVAILABLE_FETCH)
+        ? shortPosturePart(posture, 'tactical')
+        : ''
+      const strategic = posture && !posture.includes(UNAVAILABLE_FETCH)
+        ? shortPosturePart(posture, 'strategic')
+        : ''
+      if (strategic) {
+        items.push(chip('STR', strategic.replace(/^STR\s+/i, ''), postureStripColor(strategic)))
+      }
+
+      const headline = tactical || (n && !isApiUnavailable(n) ? deriveRegimeLabel(n) : 'RUNIC MACRO')
       const bearish = headline.toLowerCase().includes('fear') || headline.toLowerCase().includes('tight')
-      const right = strategic
-        ? `<span class="rsv" style="color:var(--gold)">${strategic}</span>`
-        : n
-          ? formatRegimeStripRight(n)
-          : undefined
 
       return {
         dotClass: bearish ? 'er' : watchIds.length ? 'warn' : 'ok',
         headline,
         items,
-        right,
       }
     }
 

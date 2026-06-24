@@ -25,9 +25,6 @@
         <template v-if="showSignalsDisplayMode" #signals-display-mode>
           <SignalsDisplayModeSelect />
         </template>
-        <template v-if="route.path === '/portfolio'" #portfolio-ceiling>
-          <PortfolioCeilingNav :data="portfolioSidebarData" />
-        </template>
         <template v-if="route.path === '/portfolio'" #portfolio-flags>
           <PortfolioFlagLegend />
         </template>
@@ -53,11 +50,6 @@ const showSignalsInterval = computed(
 
 const showSignalsDisplayMode = computed(
   () => route.path === '/signals' && SIGNAL_LIST_NAV_IDS.has(navActiveId.value),
-)
-
-const { data: portfolioSidebarData } = useFetch<import('~/types/api').PortfolioResponse>(
-  '/api/portfolio',
-  { key: 'api-portfolio' },
 )
 
 useNavbarShortcuts()

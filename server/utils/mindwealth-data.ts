@@ -7,12 +7,18 @@ import type {
   ChatSessionsResponse,
   CombinedPerformanceReportResponse,
   CombinedPerformanceReportRow,
+  CheckDegradationResponse,
   DashboardResponse,
   HorizontalNewHighResponse,
   MonitoredTradesResponse,
   OverwatchResponse,
   PerformanceResponse,
+  PortfolioAnalyzeRequest,
+  PortfolioAnalyzeResponse,
   PortfolioResponse,
+  PortfolioRiskResponse,
+  PortfolioScenario,
+  PortfolioTickerSearchResult,
   SentimentResponse,
   ShortlistResponse,
   SignalCountsResponse,
@@ -62,6 +68,8 @@ import {
   buildPortfolioResponse,
   filterOpenVtRows,
   indexConvictionByTicker,
+  mapPortfolioRiskResponse,
+  mapPortfolioSizerResponse,
   mapVtRowToAllocationRow,
   mapVtRowToPnlRow,
   parseVtMtmPct,
@@ -580,6 +588,13 @@ export async function loadSignalSummary(
 export async function loadStrategyHealth(reportDate?: string): Promise<StrategyHealthResponse | null> {
   const query = reportDate ? `?report_date=${encodeURIComponent(reportDate)}` : ''
   return mindwealthFetch<StrategyHealthResponse>(`/signals/strategy-health${query}`)
+}
+
+export async function loadSignalCheckDegradation(): Promise<CheckDegradationResponse | null> {
+  return mindwealthFetch<CheckDegradationResponse>('/signals/check-degradation', {
+    method: 'POST',
+    body: {},
+  })
 }
 
 function apiAggregateWinRate(value: unknown): number | null {
@@ -1253,7 +1268,21 @@ export async function loadShortlist(): Promise<ShortlistResponse | null> {
   }
 }
 
-export async function loadPortfolio(): Promise<PortfolioResponse | null> {
+export async function loadPortfolioSizer(
+  scenario: PortfolioScenario = 'normal',
+): Promise<PortfolioResponse | null> {
+  try {
+    const raw = await mindwealthFetch<Record<string, unknown>>(
+      `/portfolio/sizer?scenario=${encodeURIComponent(scenario)}`,
+    )
+    if (!raw || typeof raw !== 'object') return null
+    return mapPortfolioSizerResponse(raw, baseMeta())
+  } catch {
+    return null
+  }
+}
+
+async function loadPortfolioLegacy(): Promise<PortfolioResponse | null> {
   const [
     longBook,
     shortBook,
@@ -1307,6 +1336,58 @@ export async function loadPortfolio(): Promise<PortfolioResponse | null> {
     macroOverride,
     activeCombos,
   })
+}
+
+export async function loadPortfolio(
+  scenario: PortfolioScenario = 'normal',
+): Promise<PortfolioResponse | null> {
+  const sizer = await loadPortfolioSizer(scenario)
+  if (sizer) return sizer
+  return loadPortfolioLegacy()
+}
+
+export async function loadPortfolioRisk(
+  scenario: PortfolioScenario = 'normal',
+): Promise<PortfolioRiskResponse | null> {
+  try {
+    const raw = await mindwealthFetch<Record<string, unknown>>(
+      `/portfolio/risk?scenario=${encodeURIComponent(scenario)}`,
+    )
+    if (!raw || typeof raw !== 'object') return null
+    return mapPortfolioRiskResponse(raw)
+  } catch {
+    return null
+  }
+}
+
+export async function searchPortfolioTickers(
+  query: string,
+  limit = 20,
+): Promise<PortfolioTickerSearchResult[] | null> {
+  const q = query.trim()
+  if (!q) return []
+  try {
+    const raw = await mindwealthFetch<PortfolioTickerSearchResult[]>(
+      `/portfolio/risk/search?q=${encodeURIComponent(q)}&limit=${limit}`,
+    )
+    return Array.isArray(raw) ? raw : []
+  } catch {
+    return null
+  }
+}
+
+export async function analyzePortfolioHoldings(
+  body: PortfolioAnalyzeRequest,
+): Promise<PortfolioAnalyzeResponse | null> {
+  if (!body.holdings?.length) return null
+  try {
+    return await mindwealthFetch<PortfolioAnalyzeResponse>('/portfolio/risk/analyze', {
+      method: 'POST',
+      body,
+    })
+  } catch {
+    return null
+  }
 }
 
 export async function loadMonitoredTrades(): Promise<MonitoredTradesResponse | null> {

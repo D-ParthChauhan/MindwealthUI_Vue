@@ -19,7 +19,7 @@
           class="pf-rbtn"
           :class="{ on: scenario === 'normal' }"
           :disabled="!data.scenarios_available"
-          @click="scenario = 'normal'"
+          @click="setScenario('normal')"
         >
           NORMAL
         </button>
@@ -28,7 +28,7 @@
           class="pf-rbtn"
           :class="{ on: scenario === 'stress' }"
           :disabled="!data.scenarios_available"
-          @click="scenario = 'stress'"
+          @click="setScenario('stress')"
         >
           STRESS
         </button>
@@ -37,7 +37,7 @@
           class="pf-rbtn"
           :class="{ on: scenario === 'lowvol' }"
           :disabled="!data.scenarios_available"
-          @click="scenario = 'lowvol'"
+          @click="setScenario('lowvol')"
         >
           LOW VOL
         </button>
@@ -69,11 +69,14 @@
 
 <script setup lang="ts">
 import { UNAVAILABLE_COMPUTE } from '~/constants/unavailable'
-import type { PortfolioResponse } from '~/types/api'
+import type { PortfolioResponse, PortfolioScenario } from '~/types/api'
 import { pfPct, pfUsd } from '~/utils/portfolio-display'
 
-defineProps<{ data: PortfolioResponse }>()
+const props = defineProps<{ data: PortfolioResponse }>()
 defineEmits<{ refresh: [] }>()
+const scenario = defineModel<PortfolioScenario>('scenario', { default: 'normal' })
 
-const scenario = ref<'normal' | 'stress' | 'lowvol'>('normal')
+function setScenario(next: PortfolioScenario) {
+  scenario.value = next
+}
 </script>

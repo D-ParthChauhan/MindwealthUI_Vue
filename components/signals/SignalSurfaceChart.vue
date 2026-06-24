@@ -164,49 +164,78 @@
 
         <div
           v-if="hovered"
-          class="surface-tooltip"
+          class="surface-tip-wrap"
           :style="tooltipStyle"
         >
-          <div class="surface-tooltip-head">
-            {{ hovered.symbol }} · {{ hovered.function }} · {{ hovered.interval }}
-            <span v-if="hovered.daysElapsed === 0"> · new today</span>
-            <span v-else-if="hovered.daysElapsed != null"> · {{ hovered.daysElapsed }}d old</span>
-          </div>
-          <div
-            v-if="hovered.windowRemainingPct != null && hovered.avgHoldDays != null"
-            class="surface-tooltip-line"
-            :style="{ color: windowStatusColor(hovered.windowRemainingPct) }"
-          >
-            {{ Math.round(hovered.windowRemainingPct) }}% window remaining of {{ hovered.avgHoldDays }}d avg
-          </div>
-          <div v-else-if="hovered.windowRemainingPct != null" class="surface-tooltip-line">
-            Window: {{ hovered.windowRemainingPct.toFixed(0) }}% remaining
-          </div>
-          <div class="surface-tooltip-line">
-            BT WR {{ hovered.btWr.toFixed(1) }}%
-            <span v-if="hovered.fwdWr != null"> · FWD WR {{ hovered.fwdWr.toFixed(1) }}%</span>
-            <span v-if="hovered.compositeScore != null"> · Quality: {{ hovered.compositeScore }} pts</span>
-          </div>
-          <div v-if="hovered.signalAlpha != null || hovered.sharpe != null" class="surface-tooltip-line">
-            <span v-if="hovered.signalAlpha != null">Alpha: {{ formatSigned(hovered.signalAlpha) }}%</span>
-            <span v-if="hovered.sharpe != null"> · Sharpe: {{ hovered.sharpe.toFixed(2) }}</span>
-          </div>
-          <div v-if="hovered.mtmPct != null" class="surface-tooltip-line">
-            MTM: {{ formatSigned(hovered.mtmPct) }}%
-          </div>
-          <div v-if="hovered.er != null" class="surface-tooltip-line">
-            E[R]: {{ formatSigned(hovered.er) }}%
-            <span v-if="hovered.rrStatic != null"> · R:R: {{ hovered.rrStatic.toFixed(1) }}×</span>
-          </div>
-          <div
-            v-if="hovered.alphaInterpretation?.label"
-            class="surface-tooltip-warn"
-            :class="hovered.alphaInterpretation.type ?? 'info'"
-          >
-            {{ hovered.alphaInterpretation.label }}
-          </div>
-          <div v-if="hovered.intrinsicLagDays != null && hovered.intrinsicLagDays > 0" class="surface-tooltip-muted">
-            ~{{ hovered.intrinsicLagDays }}d detection lag (informational)
+          <div class="mw-glass-hero surface-tip-glass">
+            <div class="mw-glass-hero-inner">
+              <div class="surface-tip-top">
+                <span class="surface-tip-symbol">{{ hovered.symbol }}</span>
+                <span
+                  v-if="hovered.tier"
+                  class="surface-tip-tier"
+                  :class="tierBadgeClass(hovered.tier)"
+                >
+                  {{ tierLabel(hovered.tier) }}
+                </span>
+              </div>
+              <div class="surface-tip-pills">
+                <span class="surface-tip-pill fn" :title="hovered.function">
+                  {{ abbreviateFunction(hovered.function) }}
+                </span>
+                <span class="surface-tip-pill">{{ abbreviateInterval(hovered.interval) }}</span>
+                <span class="surface-tip-pill dir">{{ hovered.direction }}</span>
+                <span v-if="hovered.daysElapsed != null" class="surface-tip-pill age">
+                  {{ hovered.daysElapsed === 0 ? 'new' : `${hovered.daysElapsed}d` }}
+                </span>
+              </div>
+
+              <div class="surface-tip-stats">
+                <div v-if="hovered.compositeScore != null" class="surface-tip-stat">
+                  <span class="surface-tip-stat-l">Quality</span>
+                  <span class="surface-tip-stat-v quality">{{ formatScore(hovered.compositeScore) }}</span>
+                </div>
+                <div v-if="hovered.windowRemainingPct != null" class="surface-tip-stat">
+                  <span class="surface-tip-stat-l">Window</span>
+                  <span
+                    class="surface-tip-stat-v"
+                    :style="{ color: windowStatusColor(hovered.windowRemainingPct) }"
+                  >
+                    {{ hovered.windowRemainingPct.toFixed(0) }}%
+                  </span>
+                </div>
+                <div class="surface-tip-stat">
+                  <span class="surface-tip-stat-l">BT WR</span>
+                  <span class="surface-tip-stat-v">{{ hovered.btWr.toFixed(1) }}%</span>
+                </div>
+                <div class="surface-tip-stat">
+                  <span class="surface-tip-stat-l">FWD WR</span>
+                  <span class="surface-tip-stat-v" :class="hovered.fwdWr == null ? 'na' : ''">
+                    {{ hovered.fwdWr != null ? `${hovered.fwdWr.toFixed(1)}%` : '—' }}
+                  </span>
+                </div>
+                <div v-if="hovered.mtmPct != null" class="surface-tip-stat">
+                  <span class="surface-tip-stat-l">MTM</span>
+                  <span class="surface-tip-stat-v" :class="mtmClass(hovered.mtmPct)">
+                    {{ formatSigned(hovered.mtmPct) }}%
+                  </span>
+                </div>
+                <div v-if="hovered.signalAlpha != null" class="surface-tip-stat">
+                  <span class="surface-tip-stat-l">Alpha</span>
+                  <span class="surface-tip-stat-v" :class="alphaClass(hovered.signalAlpha)">
+                    {{ formatSigned(hovered.signalAlpha) }}%
+                  </span>
+                </div>
+              </div>
+
+              <div
+                v-if="hovered.alphaInterpretation?.label"
+                class="surface-tip-flag"
+                :class="hovered.alphaInterpretation.type ?? 'info'"
+              >
+                {{ hovered.alphaInterpretation.label }}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -222,10 +251,13 @@
 </template>
 
 <script setup lang="ts">
+import { abbreviateFunction, abbreviateInterval } from '~/utils/signal-detail'
 import type { SignalSurfacePoint } from '~/utils/signal-surface'
 import {
   functionColor,
   isPlottableSurfacePoint,
+  tierBadgeClass,
+  tierLabel,
   windowStatusColor,
 } from '~/utils/signal-surface'
 
@@ -238,9 +270,9 @@ const props = defineProps<{
 
 defineEmits<{ select: [index: number] }>()
 
-const W = 720
-const H = 420
-const plot = { left: 52, top: 24, width: 640, height: 340 }
+const W = 800
+const H = 480
+const plot = { left: 54, top: 22, width: 718, height: 400 }
 
 const X_MIN = -20
 const X_MAX = 110
@@ -287,7 +319,7 @@ const yTicks = computed(() => {
 const bubbles = computed(() =>
   plottable.value.map(({ p, index }) => {
     const mtm = Math.abs(p.mtmPct ?? 0)
-    const r = Math.max(6, Math.min(22, 6 + mtm * 0.8))
+    const r = Math.max(7, Math.min(24, 7 + mtm * 0.85))
     return {
       ...p,
       index,
@@ -308,11 +340,15 @@ const legendFunctions = computed(() => {
 const tooltipStyle = computed(() => {
   if (!chartHost.value) return {}
   const rect = chartHost.value.getBoundingClientRect()
-  const x = mouse.value.x - rect.left + 12
-  const y = mouse.value.y - rect.top + 12
+  const tipW = 236
+  const tipH = 152
+  let x = mouse.value.x - rect.left + 10
+  let y = mouse.value.y - rect.top + 10
+  if (x + tipW > rect.width - 4) x = mouse.value.x - rect.left - tipW - 10
+  if (y + tipH > rect.height - 4) y = mouse.value.y - rect.top - tipH - 8
   return {
-    left: `${Math.min(x, rect.width - 280)}px`,
-    top: `${Math.min(y, rect.height - 120)}px`,
+    left: `${Math.max(4, x)}px`,
+    top: `${Math.max(4, y)}px`,
   }
 })
 
@@ -322,6 +358,22 @@ function onMouseMove(e: MouseEvent) {
 
 function formatSigned(n: number) {
   return `${n >= 0 ? '+' : ''}${n.toFixed(1)}`
+}
+
+function formatScore(n: number) {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1)
+}
+
+function mtmClass(pct: number) {
+  if (pct > 0) return 'ok'
+  if (pct < 0) return 'bad'
+  return 'neutral'
+}
+
+function alphaClass(n: number) {
+  if (n > 0) return 'ok'
+  if (n < 0) return 'bad'
+  return 'neutral'
 }
 </script>
 
@@ -373,16 +425,17 @@ function formatSigned(n: number) {
   padding-top: 4px;
 }
 .surface-chart-head {
-  padding: 0 2px 8px;
+  padding: 0 2px 6px;
 }
 .surface-chart-host {
   position: relative;
   width: 100%;
-  min-height: 360px;
+  min-height: 420px;
 }
 .surface-svg {
   width: 100%;
   height: auto;
+  min-height: 420px;
   display: block;
 }
 .surface-grid {
@@ -413,51 +466,180 @@ function formatSigned(n: number) {
 .surface-bubble:hover {
   opacity: 1 !important;
 }
-.surface-tooltip {
+
+.surface-tip-wrap {
   position: absolute;
-  z-index: 5;
-  max-width: 280px;
-  padding: 8px 10px;
-  background: rgba(10, 10, 10, 0.94);
-  border: 1px solid var(--b2);
-  border-radius: 4px;
+  z-index: 8;
+  width: 236px;
   pointer-events: none;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
 }
-.surface-tooltip-head {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 9.5px;
-  color: var(--t1);
+
+.surface-tip-glass {
+  padding: 11px 12px 10px;
+  border-radius: 9px;
+  background: rgba(6, 6, 8, 0.9);
+  backdrop-filter: blur(18px) saturate(1.4);
+  -webkit-backdrop-filter: blur(18px) saturate(1.4);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 8px 28px rgba(0, 0, 0, 0.5);
+}
+
+.surface-tip-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.surface-tip-symbol {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 19px;
   font-weight: 600;
-  margin-bottom: 5px;
+  color: #f5f5f5;
+  line-height: 1.05;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
-.surface-tooltip-line {
+
+.surface-tip-tier {
+  flex-shrink: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  font-weight: 600;
+}
+
+.surface-tip-tier.tier-a {
+  color: var(--gold);
+  border: 1px solid rgba(201, 168, 76, 0.4);
+  background: rgba(201, 168, 76, 0.1);
+}
+
+.surface-tip-tier.tier-best {
+  color: var(--blue);
+  border: 1px solid rgba(91, 141, 184, 0.4);
+  background: rgba(91, 141, 184, 0.1);
+}
+
+.surface-tip-tier.tier-c,
+.surface-tip-tier.neutral {
+  color: var(--t2);
+  border: 1px solid var(--b2);
+}
+
+.surface-tip-tier.tier-exit {
+  color: var(--red);
+  border: 1px solid rgba(216, 90, 48, 0.35);
+}
+
+.surface-tip-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-bottom: 9px;
+}
+
+.surface-tip-pill {
   font-family: 'JetBrains Mono', monospace;
   font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  color: var(--t1);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.05);
+  letter-spacing: 0.25px;
+  line-height: 1.3;
+}
+
+.surface-tip-pill.fn {
+  color: var(--gold);
+  border-color: rgba(201, 168, 76, 0.35);
+  background: rgba(201, 168, 76, 0.1);
+  max-width: 108px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.surface-tip-pill.dir {
+  color: #e8e8e8;
+  font-weight: 600;
+}
+
+.surface-tip-pill.age {
   color: var(--t2);
-  line-height: 1.45;
 }
-.surface-tooltip-warn {
-  margin-top: 5px;
+
+.surface-tip-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px 6px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.surface-tip-stat {
+  text-align: left;
+  min-width: 0;
+  padding: 4px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.surface-tip-stat-l {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 8px;
+  color: var(--t2);
+  letter-spacing: 0.45px;
+  text-transform: uppercase;
+  margin-bottom: 3px;
+  line-height: 1.2;
+}
+
+.surface-tip-stat-v {
+  display: block;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #f0f0f0;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.surface-tip-stat-v.quality { color: var(--gold); }
+.surface-tip-stat-v.ok { color: var(--green); }
+.surface-tip-stat-v.bad { color: var(--red); }
+.surface-tip-stat-v.neutral { color: var(--t2); }
+.surface-tip-stat-v.na { color: var(--t4); }
+
+.surface-tip-flag {
+  margin-top: 8px;
   font-family: 'JetBrains Mono', monospace;
   font-size: 8.5px;
+  line-height: 1.4;
+  padding: 4px 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.2);
+  white-space: normal;
 }
-.surface-tooltip-warn.warn { color: var(--gold); }
-.surface-tooltip-warn.fail { color: var(--red); }
-.surface-tooltip-warn.info { color: var(--t3); }
-.surface-tooltip-muted {
-  margin-top: 4px;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 8.5px;
-  color: var(--t3);
-}
+
+.surface-tip-flag.warn { color: var(--gold); }
+.surface-tip-flag.fail { color: var(--red); }
+.surface-tip-flag.info { color: var(--t3); }
+
 .surface-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px 14px;
-  padding: 10px 2px 4px;
+  gap: 8px 12px;
+  padding: 8px 2px 2px;
   border-top: 1px solid var(--b1);
-  margin-top: 8px;
+  margin-top: 6px;
 }
 .surface-legend-item {
   display: inline-flex;

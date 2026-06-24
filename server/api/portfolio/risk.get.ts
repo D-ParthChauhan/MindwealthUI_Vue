@@ -1,8 +1,11 @@
-export default defineEventHandler(async () => {
-  throw createError({
-    statusCode: 501,
-    statusMessage: 'Not Implemented',
-    message:
-      'GET /api/v1/portfolio/risk (cluster correlation matrix, breach list, user holdings analysis) is not in API v1.4. Wire when backend ships portfolio risk endpoint.',
-  })
+import { loadPortfolioRisk } from '../../utils/mindwealth-data'
+import { parsePortfolioScenario } from '../../utils/portfolio-mappers'
+import { getUnavailablePortfolioRisk } from '../../utils/unavailable-data'
+
+export default defineEventHandler(async (event) => {
+  const query = getQuery(event)
+  const scenario = parsePortfolioScenario(query.scenario)
+  const live = await loadPortfolioRisk(scenario)
+  if (live) return live
+  return getUnavailablePortfolioRisk()
 })

@@ -216,6 +216,52 @@ export interface StrategyHealthResponse {
   strategy_health: StrategyHealthRow[]
 }
 
+export interface DegradationCombo {
+  asset: string
+  function: string
+  interval: string
+  direction: string
+}
+
+export interface SignalDegradationAlert {
+  trigger_type: string
+  strategy: string
+  combo: DegradationCombo
+  bt_rate: number
+  fwd_rate: number
+  monthly_trend?: number[]
+  consecutive_decline_months?: number
+  pattern?: string
+  recommendation?: string
+  message?: string
+  label?: string
+  border_color?: string
+}
+
+export interface PortfolioDegradationAlert {
+  trigger_type: string
+  side?: string
+  symbol: string
+  function: string
+  interval: string
+  direction: string
+  profit_pct?: number
+  status?: string
+  message?: string
+  label?: string
+  border_color?: string
+}
+
+export interface CheckDegradationResponse {
+  triggered: boolean
+  alerts: SignalDegradationAlert[]
+  portfolio_alerts?: PortfolioDegradationAlert[]
+  checked_combos: number
+  alert_count: number
+  label?: string
+  border_color?: string
+}
+
 export interface PerformanceRow {
   function: string
   strategy: string
@@ -447,6 +493,14 @@ export interface PortfolioCeilingStep {
   tone?: 'green' | 'amber' | 'gold' | 'teal' | 'default'
 }
 
+export interface PortfolioSpxTrendMeta {
+  source?: string
+  symbol?: string
+  spx_price?: number
+  spx_ma200?: number
+  above_ma200?: boolean
+}
+
 export interface PortfolioCeiling {
   vix: number | null
   vix_pct: number | null
@@ -457,6 +511,7 @@ export interface PortfolioCeiling {
   ssi_multiplier: number | null
   vix_level_mult: number | null
   spx_trend_mult: number | null
+  spx_trend_meta?: PortfolioSpxTrendMeta | null
   hy_credit_mult: number | null
   final_ceiling_pct: number | null
   formula_text: string | null
@@ -470,6 +525,7 @@ export interface PortfolioAllocationRow {
   ticker: string
   name: string | null
   investment_type: string | null
+  cluster_id?: string | null
   function: string
   interval: string
   direction: 'Long' | 'Short'
@@ -479,6 +535,11 @@ export interface PortfolioAllocationRow {
   allocation_pct: number | null
   flags: PortfolioFlag[]
   blocked: boolean
+  blocked_reason?: string | null
+  win_rate?: number | null
+  win_rate_label?: string | null
+  backtested_win_rate_pct?: number | null
+  unscored?: boolean
 }
 
 export interface PortfolioClusterGroup {
@@ -494,6 +555,7 @@ export interface PortfolioClusterGroup {
 
 export interface PortfolioPnlRow {
   ticker: string
+  name?: string | null
   investment_type: string | null
   function: string
   interval: string
@@ -509,6 +571,11 @@ export interface PortfolioPnlRow {
   flags: PortfolioFlag[]
   status: string
   blocked: boolean
+  blocked_reason?: string | null
+  win_rate?: number | null
+  win_rate_label?: string | null
+  backtested_win_rate_pct?: number | null
+  unscored?: boolean
 }
 
 export interface PortfolioConstraintCheck {
@@ -553,9 +620,14 @@ export interface PortfolioPosition {
   excluded?: boolean
 }
 
+export type PortfolioScenario = 'normal' | 'stress' | 'lowvol'
+
 export interface PortfolioResponse {
   meta?: ApiMeta
   data_source?: ApiDataSource
+  date?: string
+  as_of?: string
+  scenario?: PortfolioScenario
   ceiling: PortfolioCeiling
   clusters: PortfolioClusterGroup[]
   pnl_rows: PortfolioPnlRow[]
@@ -565,6 +637,94 @@ export interface PortfolioResponse {
   macro_override: PortfolioMacroOverride | null
   risk: PortfolioRiskState
   scenarios_available: boolean
+}
+
+export interface PortfolioRiskBreach {
+  pair: string[]
+  pair_labels: string[]
+  rho: number
+  level: 'watch' | 'action'
+  combined_weight_pct: number
+  combined_weight_usd: number
+  cap_pct: number
+  recommendation: string | null
+}
+
+export interface PortfolioRiskClusterWeight {
+  cluster_id: string
+  label: string
+  deployed_pct: number
+  max_pct: number
+}
+
+export interface PortfolioCorrelationMeta {
+  source: string
+  as_of: string
+  proxies: Record<string, string>
+  window_days: number
+}
+
+export interface PortfolioRiskResponse {
+  date: string
+  scenario: PortfolioScenario
+  labels: string[]
+  matrix: number[][]
+  correlation_meta: PortfolioCorrelationMeta
+  breaches: PortfolioRiskBreach[]
+  breach_threshold_watch: number
+  breach_threshold_action: number
+  cluster_weights: PortfolioRiskClusterWeight[]
+}
+
+export interface PortfolioTickerSearchResult {
+  symbol: string
+  name: string
+  source: 'vt_book' | 'conviction_universe' | 'conviction_store'
+}
+
+export interface PortfolioHoldingInput {
+  symbol: string
+  quantity: number
+}
+
+export interface PortfolioAnalyzeRequest {
+  holdings: PortfolioHoldingInput[]
+  cash_usd?: number
+}
+
+export interface PortfolioAnalyzePosition {
+  symbol: string
+  quantity: number
+  live_price: number
+  notional_usd: number
+  cluster_id: string
+  cluster_label: string
+}
+
+export interface PortfolioConcentrationWarning {
+  cluster_id: string
+  label: string
+  user_pct: number
+  model_max_pct: number
+  action: string
+}
+
+export interface PortfolioUserCorrelationBreach {
+  pair: string[]
+  pair_labels: string[]
+  rho: number
+  user_combined_pct: number
+  recommendation: string
+}
+
+export interface PortfolioAnalyzeResponse {
+  total_notional_usd: number
+  cash_usd: number
+  position_count: number
+  positions: PortfolioAnalyzePosition[]
+  cluster_weights: Array<{ cluster_id: string; pct: number }>
+  concentration_warnings: PortfolioConcentrationWarning[]
+  correlation_breaches: PortfolioUserCorrelationBreach[]
 }
 
 export type ChatPreset = 'freeform' | 'analyze_asset' | 'signal_insights' | 'breadth_analysis'

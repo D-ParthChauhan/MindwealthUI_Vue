@@ -253,9 +253,10 @@ function voteIcon(dir: string) {
 }
 
 .cv-dp-score {
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
+  min-width: 64px;
+  min-height: 64px;
+  padding: 8px 10px;
+  border-radius: 6px;
   border: 2px solid var(--b3);
   display: flex;
   flex-direction: column;

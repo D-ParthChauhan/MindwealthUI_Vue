@@ -505,6 +505,7 @@ import {
   RANKED_PREFERRED_FIELDS,
   SURFACE_REQUIRED_FIELDS,
 } from '~/utils/signal-surface'
+import { mergeSignalsWithDegradationCheck } from '~/utils/signal-degradation'
 import { mapSignalRow, winRateClass } from '~/utils/signals'
 
 definePageMeta({ layout: 'terminal' })
@@ -526,6 +527,7 @@ const {
   fetchCombinedPerformanceReport,
   fetchSignalSurface,
   fetchStrategyHealth,
+  fetchCheckDegradation,
 } = useApi()
 
 const outstanding = fetchSignalsOutstanding()
@@ -536,6 +538,7 @@ const breadth = fetchBreadth()
 const horizontal = fetchHorizontalNewHigh()
 const combinedPerformance = fetchCombinedPerformanceReport()
 const strategyHealth = fetchStrategyHealth()
+const checkDegradation = fetchCheckDegradation()
 
 const viewMode = computed((): SignalViewMode => {
   const nav = navActiveId.value
@@ -710,6 +713,7 @@ function refresh() {
   horizontal.refresh()
   combinedPerformance.refresh()
   strategyHealth.refresh()
+  checkDegradation.refresh()
   surfaceApi.refresh()
 }
 
@@ -726,9 +730,13 @@ const contentTitle = computed(() => {
   return tableTitle.value
 })
 
-const displaySignals = computed(() =>
-  mergeSignalsWithSurfaceRecords(filteredSignals.value, surfaceApi.data.value?.records),
-)
+const displaySignals = computed(() => {
+  const withSurface = mergeSignalsWithSurfaceRecords(
+    filteredSignals.value,
+    surfaceApi.data.value?.records,
+  )
+  return mergeSignalsWithDegradationCheck(withSurface, checkDegradation.data.value)
+})
 
 const surfacePoints = computed(() =>
   buildSurfacePoints(displaySignals.value, surfaceApi.data.value?.records),

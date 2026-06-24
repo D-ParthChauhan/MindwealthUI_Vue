@@ -41,13 +41,16 @@ export function parseSignalStatusFromRaw(
   return undefined
 }
 
-export function deriveSignalStatus(s: Signal): SignalHealthStatus | null {
-  if (s.status === 'active' || s.status === 'degraded') return s.status
+export function deriveSignalStatus(s: Signal): SignalHealthStatus {
+  if (s.status === 'degraded') return 'degraded'
+  if (s.status === 'active') return 'active'
   if (s.raw_fields) {
     const fromRaw = parseSignalStatusFromRaw(s.raw_fields)
-    if (fromRaw) return fromRaw
+    if (fromRaw === 'degraded') return 'degraded'
+    if (fromRaw === 'active') return 'active'
   }
-  return null
+  // No explicit backend status — treat as active unless check-degradation marked degraded.
+  return 'active'
 }
 
 export function sentimentDisplay(spread: number | null): string {
@@ -100,18 +103,8 @@ export function mapSignalRow(s: Signal) {
     date: formatSignalDate(s.signal_date),
     tag: sentiment,
     tagClass: sentimentTagClass(sentiment),
-    status:
-      status === 'degraded'
-        ? '⚠ degraded FWD'
-        : status === 'active'
-          ? '✓ active'
-          : '—',
-    statusColor:
-      status === 'degraded'
-        ? 'var(--gold)'
-        : status === 'active'
-          ? 'var(--green)'
-          : 'var(--t3)',
+    status: status === 'degraded' ? '⚠ degraded FWD' : '✓ active',
+    statusColor: status === 'degraded' ? 'var(--gold)' : 'var(--green)',
     fwdDegraded: status === 'degraded',
     functionFilter: s.function.toUpperCase(),
   }

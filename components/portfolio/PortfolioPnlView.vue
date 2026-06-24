@@ -11,6 +11,7 @@
         <thead>
           <tr>
             <th>Ticker</th>
+            <th>Name</th>
             <th>Investment type</th>
             <th title="Data frequency: Monthly = longer-duration; Weekly = days to weeks; Daily = short-term.">Signal · Frequency</th>
             <th class="r">Entry $</th>
@@ -19,8 +20,8 @@
             <th class="r">Market value</th>
             <th class="r">P&amp;L $</th>
             <th class="r">P&amp;L %</th>
-            <th class="c">BQ</th>
-            <th class="c">Size tier</th>
+            <th class="c">BQ · Tier</th>
+            <th class="r">Win rate</th>
             <th>Flags</th>
           </tr>
         </thead>
@@ -31,6 +32,7 @@
             :class="{ 'pf-row-blocked': row.blocked }"
           >
             <td><div class="pf-tkr" :class="{ 'pf-blocked-ticker': row.blocked }">{{ row.ticker }}</div></td>
+            <td><div class="pf-tsub">{{ pfText(data, row.name) }}</div></td>
             <td><div class="pf-tsub">{{ pfText(data, row.investment_type) }}</div></td>
             <td><div class="pf-tsub">{{ row.function }} · {{ row.interval }}</div></td>
             <td class="pf-mono">{{ pfNum(data, row.entry_price) }}</td>
@@ -47,8 +49,11 @@
               </div>
               <div class="pf-tsub">{{ pfText(data, row.size_tier) }}</div>
             </td>
-            <td class="c">
-              <div class="pf-sz-pill" :class="bqClass(row.bq_score)">{{ pfText(data, row.size_tier) }}</div>
+            <td class="pf-mono r">
+              <template v-if="row.unscored">—</template>
+              <template v-else-if="row.backtested_win_rate_pct != null">{{ row.backtested_win_rate_pct.toFixed(1) }}%</template>
+              <template v-else-if="row.win_rate != null">{{ row.win_rate.toFixed(1) }}%</template>
+              <template v-else>{{ UNAVAILABLE_COMPUTE }}</template>
             </td>
             <td>
               <div class="pf-pr-flags">

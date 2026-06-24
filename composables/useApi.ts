@@ -10,9 +10,15 @@ import type {
   OverwatchResponse,
   PerformanceResponse,
   PortfolioResponse,
+  PortfolioRiskResponse,
+  PortfolioAnalyzeRequest,
+  PortfolioAnalyzeResponse,
+  PortfolioScenario,
+  PortfolioTickerSearchResult,
   SentimentResponse,
   ShortlistResponse,
   SignalCountsResponse,
+  CheckDegradationResponse,
   SignalSurfaceResponse,
   SignalSummaryResponse,
   SignalsListResponse,
@@ -68,6 +74,11 @@ export function useApi() {
       key: 'api-signals-strategy-health',
     })
 
+  const fetchCheckDegradation = () =>
+    useFetch<CheckDegradationResponse>('/api/signals/check-degradation', {
+      key: 'api-signals-check-degradation',
+    })
+
   const fetchPerformance = () =>
     useFetch<PerformanceResponse>('/api/performance', { key: 'api-performance' })
 
@@ -82,7 +93,32 @@ export function useApi() {
   const fetchMonitoredTrades = () =>
     useFetch<MonitoredTradesResponse>('/api/monitored-trades', { key: 'api-monitored-trades' })
 
-  const fetchPortfolio = () => useFetch<PortfolioResponse>('/api/portfolio', { key: 'api-portfolio' })
+  const fetchPortfolio = (scenario: MaybeRef<PortfolioScenario> = 'normal') =>
+    useFetch<PortfolioResponse>('/api/portfolio', {
+      key: computed(() => `api-portfolio-${toValue(scenario)}`),
+      query: computed(() => ({ scenario: toValue(scenario) })),
+    })
+
+  const fetchPortfolioRisk = (scenario: MaybeRef<PortfolioScenario> = 'normal') =>
+    useFetch<PortfolioRiskResponse>('/api/portfolio/risk', {
+      key: computed(() => `api-portfolio-risk-${toValue(scenario)}`),
+      query: computed(() => ({ scenario: toValue(scenario) })),
+    })
+
+  async function searchPortfolioTickers(q: string, limit = 20): Promise<PortfolioTickerSearchResult[]> {
+    return $fetch<PortfolioTickerSearchResult[]>('/api/portfolio/risk/search', {
+      query: { q, limit },
+    })
+  }
+
+  async function analyzePortfolioHoldings(
+    body: PortfolioAnalyzeRequest,
+  ): Promise<PortfolioAnalyzeResponse> {
+    return $fetch<PortfolioAnalyzeResponse>('/api/portfolio/risk/analyze', {
+      method: 'POST',
+      body,
+    })
+  }
 
   const fetchMeta = () => useFetch<ApiMeta>('/api/meta', { key: 'api-meta' })
 
@@ -107,6 +143,7 @@ export function useApi() {
     fetchSignalSurface,
     fetchSignalSummary,
     fetchStrategyHealth,
+    fetchCheckDegradation,
     fetchPerformance,
     fetchBreadth,
     fetchSentiment,
@@ -114,6 +151,9 @@ export function useApi() {
     fetchShortlist,
     fetchMonitoredTrades,
     fetchPortfolio,
+    fetchPortfolioRisk,
+    searchPortfolioTickers,
+    analyzePortfolioHoldings,
     fetchMeta,
     postChat,
     fetchChatSessions,

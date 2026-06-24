@@ -6,9 +6,12 @@ import type {
   PortfolioComboStripItem,
   PortfolioConstraintCheck,
   PortfolioFlag,
+  PortfolioFlagId,
   PortfolioMacroOverride,
   PortfolioPnlRow,
   PortfolioResponse,
+  PortfolioRiskResponse,
+  PortfolioScenario,
   PortfolioSummary,
 } from '~/types/api'
 import type { ConvictionSignalRow, ConvictionVerdict } from '~/types/conviction'
@@ -416,4 +419,296 @@ export function mapOutstandingForMultiSig(
     function: String(r.Function ?? r.function ?? ''),
     direction: String(r.Signal ?? r.direction ?? ''),
   }))
+}
+
+const PORTFOLIO_SCENARIOS = new Set<PortfolioScenario>(['normal', 'stress', 'lowvol'])
+
+export function parsePortfolioScenario(raw: unknown): PortfolioScenario {
+  const s = String(raw ?? 'normal').toLowerCase()
+  return PORTFOLIO_SCENARIOS.has(s as PortfolioScenario) ? (s as PortfolioScenario) : 'normal'
+}
+
+function numOrNull(raw: unknown): number | null {
+  if (raw == null || raw === '') return null
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : null
+}
+
+function mapPortfolioFlags(raw: unknown): PortfolioFlag[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .map((f) => {
+      if (typeof f === 'string') return { id: f as PortfolioFlagId, label: f }
+      const row = f as Record<string, unknown>
+      const id = String(row.id ?? row.label ?? '')
+      if (!id) return null
+      return { id: id as PortfolioFlagId, label: String(row.label ?? id) }
+    })
+    .filter((f): f is PortfolioFlag => f != null)
+}
+
+function mapSizerPositionRow(raw: Record<string, unknown>): PortfolioAllocationRow {
+  const direction = String(raw.direction ?? 'Long')
+  return {
+    ticker: String(raw.ticker ?? '—'),
+    name: raw.name != null ? String(raw.name) : null,
+    investment_type: raw.investment_type != null ? String(raw.investment_type) : null,
+    cluster_id: raw.cluster_id != null ? String(raw.cluster_id) : null,
+    function: String(raw.function ?? '—'),
+    interval: String(raw.interval ?? '—'),
+    direction: direction.toLowerCase() === 'short' ? 'Short' : 'Long',
+    bq_score: numOrNull(raw.bq_score),
+    size_tier: raw.size_tier != null ? String(raw.size_tier) : null,
+    allocation_usd: numOrNull(raw.allocation_usd),
+    allocation_pct: numOrNull(raw.allocation_pct),
+    flags: mapPortfolioFlags(raw.flags),
+    blocked: Boolean(raw.blocked),
+    blocked_reason: raw.blocked_reason != null ? String(raw.blocked_reason) : null,
+    win_rate: numOrNull(raw.win_rate),
+    win_rate_label: raw.win_rate_label != null ? String(raw.win_rate_label) : null,
+    backtested_win_rate_pct: numOrNull(raw.backtested_win_rate_pct),
+    unscored: raw.unscored === true,
+  }
+}
+
+function mapSizerPnlRow(raw: Record<string, unknown>): PortfolioPnlRow {
+  const alloc = mapSizerPositionRow(raw)
+  const direction = String(raw.direction ?? 'Long')
+  return {
+    ticker: alloc.ticker,
+    name: alloc.name,
+    investment_type: alloc.investment_type,
+    function: alloc.function,
+    interval: alloc.interval,
+    direction: direction.toLowerCase() === 'short' ? 'Short' : 'Long',
+    entry_price: numOrNull(raw.entry_price),
+    current_price: numOrNull(raw.today_price ?? raw.current_price),
+    shares: numOrNull(raw.shares),
+    market_value: numOrNull(raw.market_value_usd ?? raw.market_value),
+    pnl_usd: numOrNull(raw.pnl_usd),
+    pnl_pct: numOrNull(raw.pnl_pct),
+    bq_score: alloc.bq_score,
+    size_tier: alloc.size_tier,
+    flags: alloc.flags,
+    status: String(raw.status ?? 'Open'),
+    blocked: alloc.blocked,
+    blocked_reason: alloc.blocked_reason,
+    win_rate: alloc.win_rate,
+    win_rate_label: alloc.win_rate_label,
+    backtested_win_rate_pct: alloc.backtested_win_rate_pct,
+    unscored: alloc.unscored,
+  }
+}
+
+function mapSizerCluster(raw: Record<string, unknown>): PortfolioClusterGroup {
+  const positions = Array.isArray(raw.positions)
+    ? raw.positions.map((p) => mapSizerPositionRow(p as Record<string, unknown>))
+    : []
+  return {
+    id: String(raw.id ?? 'cluster'),
+    label: String(raw.label ?? raw.id ?? 'Cluster'),
+    budget_usd: numOrNull(raw.budget_usd),
+    budget_pct: numOrNull(raw.budget_pct),
+    deployed_usd: numOrNull(raw.deployed_usd),
+    deployed_pct: numOrNull(raw.deployed_pct),
+    max_pct: numOrNull(raw.max_pct),
+    positions,
+  }
+}
+
+function mapSizerCeiling(raw: Record<string, unknown> | undefined): PortfolioCeiling {
+  const c = raw ?? {}
+  const steps = Array.isArray(c.steps)
+    ? c.steps.map((s) => {
+        const row = s as Record<string, unknown>
+        return {
+          label: String(row.label ?? ''),
+          value: String(row.value ?? ''),
+          tone: row.tone as PortfolioCeilingStep['tone'],
+        }
+      })
+    : []
+
+  const spxMeta = c.spx_trend_meta as Record<string, unknown> | undefined
+  const spx_trend_meta = spxMeta
+    ? {
+        source: spxMeta.source != null ? String(spxMeta.source) : undefined,
+        symbol: spxMeta.symbol != null ? String(spxMeta.symbol) : undefined,
+        spx_price: numOrNull(spxMeta.spx_price) ?? undefined,
+        spx_ma200: numOrNull(spxMeta.spx_ma200) ?? undefined,
+        above_ma200: spxMeta.above_ma200 === true,
+      }
+    : null
+
+  return {
+    vix: numOrNull(c.vix),
+    vix_pct: numOrNull(c.vix_pct),
+    vix_regime: c.vix_regime != null ? String(c.vix_regime) : null,
+    val_regime: c.val_regime != null ? String(c.val_regime) : null,
+    geo_overlay: c.geo_overlay != null ? String(c.geo_overlay) : null,
+    regime_max_pct: numOrNull(c.regime_max_pct),
+    ssi_multiplier: numOrNull(c.ssi_multiplier),
+    vix_level_mult: numOrNull(c.vix_level_mult),
+    spx_trend_mult: numOrNull(c.spx_trend_mult),
+    spx_trend_meta,
+    hy_credit_mult: numOrNull(c.hy_credit_mult),
+    final_ceiling_pct: numOrNull(c.final_ceiling_pct),
+    formula_text: c.formula_text != null ? String(c.formula_text) : null,
+    note: c.note != null ? String(c.note) : null,
+    portfolio_notional: numOrNull(c.portfolio_notional),
+    idle_cash_yield_pct: numOrNull(c.idle_cash_yield_pct),
+    steps,
+  }
+}
+
+export function mapPortfolioSizerResponse(
+  raw: Record<string, unknown>,
+  meta?: PortfolioResponse['meta'],
+): PortfolioResponse {
+  const ceiling = mapSizerCeiling(raw.ceiling as Record<string, unknown>)
+  const clusters = Array.isArray(raw.clusters)
+    ? raw.clusters.map((c) => mapSizerCluster(c as Record<string, unknown>))
+    : []
+  const pnl_rows = Array.isArray(raw.pnl_rows)
+    ? raw.pnl_rows.map((r) => mapSizerPnlRow(r as Record<string, unknown>))
+    : clusters.flatMap((c) =>
+        c.positions.map((p) => ({
+          ...mapSizerPnlRow(p as unknown as Record<string, unknown>),
+          ticker: p.ticker,
+          name: p.name,
+          investment_type: p.investment_type,
+          function: p.function,
+          interval: p.interval,
+          direction: p.direction,
+          bq_score: p.bq_score,
+          size_tier: p.size_tier,
+          flags: p.flags,
+          blocked: p.blocked,
+          status: 'Open',
+          entry_price: null,
+          current_price: null,
+          shares: null,
+          market_value: null,
+          pnl_usd: null,
+          pnl_pct: null,
+        })),
+      )
+
+  const summaryRaw = (raw.summary as Record<string, unknown>) ?? {}
+  const summary: PortfolioSummary = {
+    deployed_usd: numOrNull(summaryRaw.deployed_usd),
+    deployed_pct: numOrNull(summaryRaw.deployed_pct),
+    cash_usd: numOrNull(summaryRaw.cash_usd),
+    cash_pct: numOrNull(summaryRaw.cash_pct),
+    idle_income_usd: numOrNull(summaryRaw.idle_income_usd),
+    open_position_count: Number(summaryRaw.open_position_count ?? pnl_rows.length),
+  }
+
+  const constraints = Array.isArray(raw.constraints)
+    ? raw.constraints.map((c) => {
+        const row = c as Record<string, unknown>
+        return {
+          level: (row.level as PortfolioConstraintCheck['level']) ?? 'ok',
+          title: String(row.title ?? ''),
+          body: String(row.body ?? ''),
+        }
+      })
+    : []
+
+  const active_combos = Array.isArray(raw.active_combos)
+    ? raw.active_combos.map((c) => {
+        const row = c as Record<string, unknown>
+        return {
+          id: String(row.id ?? ''),
+          label: String(row.label ?? ''),
+          detail: row.detail != null ? String(row.detail) : null,
+        }
+      })
+    : []
+
+  const macroRaw = raw.macro_override as Record<string, unknown> | null | undefined
+  const macro_override =
+    macroRaw && macroRaw.active
+      ? {
+          active: true,
+          reasons: Array.isArray(macroRaw.reasons)
+            ? macroRaw.reasons.map((r) => String(r))
+            : [],
+        }
+      : null
+
+  const riskRaw = (raw.risk as Record<string, unknown>) ?? {}
+
+  return {
+    meta,
+    date: raw.date != null ? String(raw.date) : undefined,
+    as_of: raw.as_of != null ? String(raw.as_of) : undefined,
+    scenario: parsePortfolioScenario(raw.scenario),
+    ceiling,
+    clusters,
+    pnl_rows,
+    summary,
+    constraints,
+    active_combos,
+    macro_override,
+    risk: {
+      available: riskRaw.available !== false,
+      message: String(riskRaw.message ?? 'Use GET /api/v1/portfolio/risk for full correlation matrix.'),
+    },
+    scenarios_available: raw.scenarios_available === true,
+  }
+}
+
+export function mapPortfolioRiskResponse(raw: Record<string, unknown>): PortfolioRiskResponse {
+  const breaches = Array.isArray(raw.breaches)
+    ? raw.breaches.map((b) => {
+        const row = b as Record<string, unknown>
+        return {
+          pair: Array.isArray(row.pair) ? row.pair.map(String) : [],
+          pair_labels: Array.isArray(row.pair_labels) ? row.pair_labels.map(String) : [],
+          rho: Number(row.rho ?? 0),
+          level: String(row.level) === 'action' ? 'action' as const : 'watch' as const,
+          combined_weight_pct: Number(row.combined_weight_pct ?? 0),
+          combined_weight_usd: Number(row.combined_weight_usd ?? 0),
+          cap_pct: Number(row.cap_pct ?? 0),
+          recommendation: row.recommendation != null ? String(row.recommendation) : null,
+        }
+      })
+    : []
+
+  const cluster_weights = Array.isArray(raw.cluster_weights)
+    ? raw.cluster_weights.map((c) => {
+        const row = c as Record<string, unknown>
+        return {
+          cluster_id: String(row.cluster_id ?? ''),
+          label: String(row.label ?? row.cluster_id ?? ''),
+          deployed_pct: Number(row.deployed_pct ?? 0),
+          max_pct: Number(row.max_pct ?? 0),
+        }
+      })
+    : []
+
+  const metaRaw = (raw.correlation_meta as Record<string, unknown>) ?? {}
+  const proxiesRaw = (metaRaw.proxies as Record<string, unknown>) ?? {}
+  const proxies: Record<string, string> = {}
+  for (const [k, v] of Object.entries(proxiesRaw)) {
+    proxies[k] = String(v)
+  }
+
+  return {
+    date: String(raw.date ?? ''),
+    scenario: parsePortfolioScenario(raw.scenario),
+    labels: Array.isArray(raw.labels) ? raw.labels.map(String) : [],
+    matrix: Array.isArray(raw.matrix) ? (raw.matrix as number[][]) : [],
+    correlation_meta: {
+      source: String(metaRaw.source ?? ''),
+      as_of: String(metaRaw.as_of ?? ''),
+      proxies,
+      window_days: Number(metaRaw.window_days ?? 0),
+    },
+    breaches,
+    breach_threshold_watch: Number(raw.breach_threshold_watch ?? 0.75),
+    breach_threshold_action: Number(raw.breach_threshold_action ?? 0.85),
+    cluster_weights,
+  }
 }

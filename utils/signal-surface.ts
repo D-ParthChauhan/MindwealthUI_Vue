@@ -45,6 +45,33 @@ export interface SignalSurfacePoint {
 export const SURFACE_REQUIRED_FIELDS = ['composite_score', 'window_remaining_pct'] as const
 export const RANKED_PREFERRED_FIELDS = ['composite_score', 'tier'] as const
 
+export type TierFilterSlug = 'best' | 'ta' | 'tierc' | 'exit' | 'unrated'
+
+export const RANKED_TIER_FILTERS = [
+  { value: 'all', label: 'All tiers' },
+  { value: 'best', label: 'Best Available' },
+  { value: 'ta', label: 'Tier A' },
+  { value: 'tierc', label: 'Tier C' },
+  { value: 'exit', label: 'Exit' },
+] as const
+
+export type RankedTierFilter = (typeof RANKED_TIER_FILTERS)[number]['value']
+
+export function normalizeTierSlug(tier: SignalTier | null | undefined): TierFilterSlug {
+  if (tier == null || tier === '') return 'unrated'
+  const t = String(tier).toLowerCase().replace(/\s+/g, '')
+  if (t === 'best' || t === 'bestavailable') return 'best'
+  if (t === 'ta' || t === 'tiera') return 'ta'
+  if (t === 'tierc') return 'tierc'
+  if (t === 'exit') return 'exit'
+  return 'unrated'
+}
+
+export function matchesTierFilter(tier: SignalTier | null | undefined, filter: RankedTierFilter): boolean {
+  if (filter === 'all') return true
+  return normalizeTierSlug(tier) === filter
+}
+
 const FUNCTION_COLORS: Record<string, string> = {
   TRENDPULSE: '#378ADD',
   DELTADRIFT: '#D85A30',

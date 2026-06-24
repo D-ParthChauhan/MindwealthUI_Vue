@@ -3,12 +3,14 @@ import type {
   ApiMeta,
   BreadthResponse,
   CombinedPerformanceReportResponse,
+  CheckDegradationResponse,
   DashboardResponse,
   HorizontalNewHighResponse,
   MonitoredTradesResponse,
   OverwatchResponse,
   PerformanceResponse,
   PortfolioResponse,
+  PortfolioRiskResponse,
   MacroCombosResponse,
   MacroDataFreshnessResponse,
   MacroNarrativeResponse,
@@ -186,6 +188,25 @@ export function getUnavailablePortfolio(): PortfolioResponse {
       message: UNAVAILABLE_FETCH,
     },
     scenarios_available: false,
+  }
+}
+
+export function getUnavailablePortfolioRisk(): PortfolioRiskResponse {
+  return {
+    date: UNAVAILABLE_FETCH,
+    scenario: 'normal',
+    labels: [],
+    matrix: [],
+    correlation_meta: {
+      source: UNAVAILABLE_FETCH,
+      as_of: UNAVAILABLE_FETCH,
+      proxies: {},
+      window_days: 0,
+    },
+    breaches: [],
+    breach_threshold_watch: 0.75,
+    breach_threshold_action: 0.85,
+    cluster_weights: [],
   }
 }
 
@@ -387,6 +408,16 @@ export function getUnavailableSignalSummary(report = 'outstanding-signals'): Sig
 
 export function getUnavailableStrategyHealth(): StrategyHealthResponse {
   return { strategy_health: [] }
+}
+
+export function getUnavailableCheckDegradation(): CheckDegradationResponse {
+  return {
+    triggered: false,
+    alerts: [],
+    portfolio_alerts: [],
+    checked_combos: 0,
+    alert_count: 0,
+  }
 }
 
 export { UNAVAILABLE_COMPUTE, UNAVAILABLE_FETCH }

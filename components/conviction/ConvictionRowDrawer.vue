@@ -323,9 +323,10 @@ function voteIcon(dir: string) {
 }
 
 .cv-dr-score {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
+  min-width: 68px;
+  min-height: 68px;
+  padding: 8px 10px;
+  border-radius: 6px;
   display: flex;
   flex-direction: column;
   align-items: center;
