@@ -91,7 +91,8 @@
           class="wr-tick-x"
           text-anchor="middle"
         >
-          {{ lbl }}
+          <title>{{ lbl }}</title>
+          {{ xLabelDisplay[i] }}
         </text>
       </g>
 
@@ -129,6 +130,7 @@
 
 <script setup lang="ts">
 import type { DashboardResponse } from '~/types/api'
+import { abbreviateFunction } from '~/utils/signal-detail'
 import {
   formatWinRateChartCaption,
   getChartXLabels,
@@ -140,10 +142,10 @@ const props = defineProps<{
 }>()
 
 const W = 640
-const H = 340
-const plot = { left: 52, top: 40, width: 572, height: 232 }
-const xTickY = plot.top + plot.height + 22
-const xTitleY = plot.top + plot.height + 42
+const H = 360
+const plot = { left: 52, top: 40, width: 572, height: 220 }
+const xTickY = plot.top + plot.height + 28
+const xTitleY = plot.top + plot.height + 48
 
 const gradientId = 'wr-gg-dashboard'
 
@@ -170,6 +172,13 @@ const xAxisLabel = computed(() => props.chart?.properties.x_axis ?? 'X')
 const xLabels = computed(() =>
   props.chart ? getChartXLabels(props.chart) : [],
 )
+
+const xLabelDisplay = computed(() => {
+  const labels = xLabels.value
+  const isFunctionAxis = xAxisLabel.value.toLowerCase() === 'function'
+  if (!isFunctionAxis) return labels
+  return labels.map((lbl) => abbreviateFunction(lbl))
+})
 
 function yToPlot(y: number): number {
   const { y_min, y_max } = yScale.value
@@ -258,13 +267,13 @@ const ariaLabel = computed(() =>
   display: flex;
   flex-direction: column;
   width: 100%;
-  min-height: 392px;
+  min-height: 412px;
 }
 .wr-svg {
   display: block;
   width: 100%;
-  height: 340px;
-  min-height: 340px;
+  height: 360px;
+  min-height: 360px;
   flex-shrink: 0;
 }
 .wr-legend-bar {
@@ -311,7 +320,7 @@ const ariaLabel = computed(() =>
   fill: var(--t2);
 }
 .wr-tick-x {
-  font-size: 12.5px;
+  font-size: 11px;
   fill: var(--t1);
 }
 .wr-axis-title,
