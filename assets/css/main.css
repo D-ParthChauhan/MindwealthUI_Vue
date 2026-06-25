@@ -368,18 +368,20 @@ button{font:inherit}
 .ach-msg-label{color:var(--t3)}
 .ach-msg-time{color:var(--t4);margin-left:auto}
 .ach-msg-user .ach-msg-time{margin-left:0;margin-right:auto}
-.ach-msg-bubble{max-width:92%;border-radius:8px;padding:9px 11px;border:1px solid var(--b2);background:var(--s2)}
+.ach-msg-bubble{max-width:92%;width:100%;border-radius:8px;padding:9px 11px;border:1px solid var(--b2);background:var(--s2)}
 .ach-msg-user .ach-msg-bubble{background:rgba(52,152,219,0.06);border-color:rgba(52,152,219,0.18)}
-.ach-msg-agent .ach-msg-bubble{background:rgba(201,168,76,0.04);border-color:rgba(201,168,76,0.14)}
+.ach-msg-agent .ach-msg-bubble{background:rgba(201,168,76,0.04);border-color:rgba(201,168,76,0.14);max-width:100%}
 .ach-msg-pending{min-width:52px;padding:12px 14px}
-.ach-msg-body{font-family:'Inter',sans-serif;font-size:11.5px;color:var(--t1);line-height:1.6;word-break:break-word}
+.ach-msg-body{font-family:'Inter',sans-serif;font-size:11.5px;color:var(--t1);line-height:1.6;word-break:break-word;overflow-wrap:anywhere;max-width:100%}
 .ach-msg-body .ach-h2{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--gold);letter-spacing:0.8px;margin:8px 0 4px;text-transform:uppercase}
 .ach-msg-body .ach-h3{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--t2);letter-spacing:0.5px;margin:6px 0 3px}
 .ach-msg-body .ach-p{margin:0 0 6px}
 .ach-msg-body .ach-p:last-child{margin-bottom:0}
 .ach-msg-body .ach-hr{border:none;border-top:1px solid rgba(201,168,76,0.14);margin:10px 0;opacity:0.85}
-.ach-msg-body .ach-ul,.ach-msg-body .ach-ol{margin:4px 0 8px;padding-left:16px}
-.ach-msg-body li{margin-bottom:4px}
+.ach-msg-body .ach-ul,.ach-msg-body .ach-ol{margin:4px 0 8px;padding-left:1.15em;list-style-position:outside}
+.ach-msg-body .ach-ul .ach-ul,.ach-msg-body .ach-ul .ach-ol,.ach-msg-body .ach-ol .ach-ul,.ach-msg-body .ach-ol .ach-ol{margin:2px 0 4px;padding-left:1em}
+.ach-msg-body li{margin:0 0 4px;padding-left:0.2em}
+.ach-msg-body li > .ach-ul,.ach-msg-body li > .ach-ol{margin-top:4px}
 .ach-msg-body code{font-family:'JetBrains Mono',monospace;font-size:10px;background:var(--s3);padding:1px 4px;border-radius:3px}
 .ach-msg-body .wa{color:var(--red)}
 .ach-msg-body strong{color:#e8d48a;font-weight:600}

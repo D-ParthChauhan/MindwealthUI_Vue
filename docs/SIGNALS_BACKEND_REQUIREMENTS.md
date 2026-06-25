@@ -1,6 +1,5 @@
 # Signals Page — Backend Requirements
 
-**Audience:** Backend / quant / data engineering (Divyanshu, Ahil, API maintainers)  
 **Frontend reference:** `pages/signals.vue`, `types/api.ts`, `utils/signal-surface.ts`, `server/utils/mindwealth-data.ts`  
 **API baseline:** OpenAPI v1.2+ (`mindwealth-api-docs-main 3/`)  
 **Date:** June 2026  
