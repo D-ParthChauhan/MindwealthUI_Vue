@@ -86,9 +86,41 @@
             </div>
             <div class="ai-brief">{{ data.analyst_snippet }}</div>
           </div>
+          <div class="card dash-report-card">
+            <div class="dash-report-hd">Portfolio Reports</div>
+            <div class="ach-prompts dash-report-prompts">
+              <button
+                type="button"
+                class="ach-prompt"
+                @click="showSummaryPopup = true"
+              >
+                Performance Summary — Sharpe, CAGR &amp; Win Rate
+              </button>
+              <button
+                type="button"
+                class="ach-prompt"
+                @click="showDiversificationPopup = true"
+              >
+                Diversification Analysis — Performance vs Unique Assets
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
+
+    <ImagePopup
+      :open="showSummaryPopup"
+      title="Portfolio Performance Summary"
+      src="/images/portfolio-performance-summary.jpg"
+      @close="showSummaryPopup = false"
+    />
+    <ImagePopup
+      :open="showDiversificationPopup"
+      title="Portfolio Performance vs Unique Assets"
+      src="/images/portfolio-diversification-analysis.jpg"
+      @close="showDiversificationPopup = false"
+    />
   </DataState>
 </template>
 
@@ -108,6 +140,9 @@ const topSignals = computed(() =>
     mapTopSignalRow(s, data.value?.degraded_strategy),
   ),
 )
+
+const showSummaryPopup = ref(false)
+const showDiversificationPopup = ref(false)
 
 </script>
 
@@ -149,6 +184,20 @@ const topSignals = computed(() =>
   border-left: 2px solid rgba(201, 168, 76, 0.25);
   padding-left: 9px;
   font-family: 'JetBrains Mono', monospace;
+}
+.dash-report-card {
+  padding: 12px 15px;
+}
+.dash-report-hd {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 1.2px;
+  color: var(--t3);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.dash-report-prompts {
+  margin-top: 0;
 }
 .dash-signals-tbl td {
   color: var(--t1);
